@@ -39,7 +39,19 @@ if (process.argv[2] == "pack") {
     let new_pack_file = `
 (function() {
     var __counter = 0;
-    var __require = setInterval(function() {
+    var __require = setInterval(function() {`;
+    
+    if (type == "dev") {
+        new_pack_file += `
+        if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+            // do nothing
+        } else {
+            console.error("Please use amd_pack in production mode, this build isn't secure!");
+        }
+        `;
+    }
+    
+    new_pack_file += `
 
         if (__counter > 60 * 3) { // wait 3 seconds
             clearInterval(__require);
@@ -125,8 +137,7 @@ if (process.argv[2] == "pack") {
     }
 
     var sri_obj = ${type == "prod" ? JSON.stringify(hashes, null, 4) : "{}"};
-})();
-    `;
+})();`;
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
 
