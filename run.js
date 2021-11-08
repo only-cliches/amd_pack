@@ -143,10 +143,10 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
         "license": "${package_json.license}",
         "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
         "files": [
-            {"file": "index.min.js", "sri": "sha512-${shasum.slice(0, shasum.length - 1).replace(/(\r\n|\n|\r)/gm, "")}", "sizeKB": ${sizeProd/1000}}
+            {"file": "index.min.js", "sri": "sha512-${shasum.slice(0, shasum.length - 1).toString().replace(/(\r\n|\n|\r)/gm, "")}", "sizeKB": ${sizeProd/1000}}
         ],
         "devFiles": [
-            {"file": "index.js", "sri": "sha512-${shasumDev.slice(0, shasum.length - 1).replace(/(\r\n|\n|\r)/gm, "")}", "sizeKB": ${sizeDev/1000}}
+            {"file": "index.js", "sri": "sha512-${shasumDev.slice(0, shasum.length - 1).toString().replace(/(\r\n|\n|\r)/gm, "")}", "sizeKB": ${sizeDev/1000}}
         ]
     }
     `.trim());
