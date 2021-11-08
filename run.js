@@ -32,7 +32,8 @@ if (process.argv[2] == "pack") {
     let hashes = {};
     let sizes = 0;
 
-    for (let file in files) {
+    for (let i in files) {
+        const file = files[i];
         const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file))).isDirectory();
         const first_char = Array.from(file)[0];
 
