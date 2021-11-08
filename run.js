@@ -68,7 +68,7 @@ if (process.argv[2] == "pack") {
     new_pack_file += `
         },
         onNodeCreated: function(node, config, module, path) {
-            var sri = ${JSON.stringify(hashes)}[module];
+            var sri = ${JSON.stringify(hashes, null, 4)}[module];
             if (sri) {
                 node.setAttribute('integrity', sri);
                 node.setAttribute('crossorigin', 'anonymous');
@@ -83,18 +83,25 @@ if (process.argv[2] == "pack") {
         })();
     `;
 
-    fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file);
+    fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
 
-    child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
-    fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
+    if (type == "dev") {
+        if (!fs.existsSync(path.join(__cwd, "libs", "require.js"))) {
+            request('https://requirejs.org/docs/release/2.3.6/comments/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.js")));
+        }
+    
+    } else {
+        child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
+        fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
 
-    if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
-        request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
+        if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
+            request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
+        }
+    
     }
 
-
-    const shasum = get_file_hash("pack.min.js");
-    const shasumRequire = get_file_hash("require.min.js");
+    const shasum = get_file_hash(type == "dev" ? "pack.js" : "pack.min.js");
+    const shasumRequire = get_file_hash(type == "dev" ? "require.js" : "require.min.js");
 
 
     console.log("Completed, paste this into index.html:");
