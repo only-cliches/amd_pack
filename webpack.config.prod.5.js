@@ -72,23 +72,25 @@ module.exports = {
 
                 if (!depdency[request]) {
                     try {
+                        child.execSync(`npm install ${request}`, {cwd: project_cwd});
+                    } catch (e) { }
+
+                    try {
                         const version = package_file.dependencies[request];
                         depdency[request] = version;
                         fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
                     } catch (e) {
-                        try {
-                            child.execSync(`npm install ${request}`);
-                        } catch (e) { }
+   
                         
                         const package = JSON.parse(fs.readFileSync(path.join(project_cwd, "node_modules", request, "package.json")));
                         const version = package.version;    
                         depdency[request] = version;
                         fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
-
-                        try {
-                            child.execSync(`npm uninstall ${request}`);
-                        } catch (e) { }
                     }
+
+                    try {
+                        child.execSync(`npm uninstall ${request}`, {cwd: project_cwd});
+                    } catch (e) { }
 
                 }
 
