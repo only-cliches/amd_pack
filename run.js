@@ -15,11 +15,26 @@ const get_file_hash = (file_path) => {
     return "sha512-" + shaSum.slice(0, shaSum.length - 1).toString().replace(/(\r\n|\n|\r)/gm, "");
 }
 
+
+
 if (process.argv[2] == "pack") {
 
     const type = process.argv[3] || "dev"; // dev or prod
 
-    const files = fs.readdirSync("libs");
+    const handle_library_file = (folder_name) => {
+        let file_size = 0;
+        let sri = "";
+        let location = "";
+        const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "lib.json")).toString());
+        (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
+            if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
+                file_size += jsFile.sizeKB;
+                sri = jsFile.sri;
+                location = `"${folder_name}": "${folder_name}/${jsFile.file}",\n`;
+            }
+        });
+        return [file_size, sri, location];
+    };
 
     let new_pack_file = `
 (function() {
@@ -42,11 +57,13 @@ if (process.argv[2] == "pack") {
             baseUrl: 'libs',
             deps: ['app'],
             paths: {
-    
-    `;
+`;
 
     let hashes = {};
     let sizes = 0;
+    
+    // load libs
+    const files = fs.readdirSync("libs");
 
     for (let i in files) {
         const file = files[i];
@@ -54,14 +71,37 @@ if (process.argv[2] == "pack") {
         const first_char = Array.from(file)[0];
 
         if (isDir && first_char != "@") {
-            const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", file, "lib.json")).toString());
-            (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
-                if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
-                    sizes += jsFile.sizeKB;
-                    hashes[file] = jsFile.sri;
-                    new_pack_file += `"${file}": "${file}/${jsFile.file}",\n`;
+            const [file_size, sri, location] = handle_library_file(file);
+            sizes += file_size;
+            hashes[file] = sri;
+            new_pack_file += location;
+        }
+
+        if (isDir && first_char == "@") {
+            const nested_files = fs.readFileSync(path.join(__cwd, "libs", file));
+            for (let k in nested_files) {
+                const nfile = nested_files[k];
+                const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file, nfile))).isDirectory();
+
+                if (isDir) {
+                    const [file_size, sri, location] = handle_library_file(path.join(file, nfile));
+                    sizes += file_size;
+                    hashes[path.join(file, nfile)] = sri;
+                    new_pack_file += location;
                 }
-            });
+            }
+        }
+    }
+
+    // load app
+    const files = fs.readdirSync(".");
+
+    for (let i in files) {
+        const app_file = type == "dev" ? "app.js" : "app.min.js";
+        if (app_file == files[i]) {
+            const sri = get_file_hash(path.join("..", app_file));
+            hashes["app"] =  sri;
+            new_pack_file += `"app": "../${app_file}"`;
         }
     }
 
@@ -106,7 +146,9 @@ if (process.argv[2] == "pack") {
     const shasumRequire = get_file_hash(type == "dev" ? "require.js" : "require.min.js");
 
 
-    console.log("Completed, paste this into index.html:");
+    console.log("Completed!");
+    console.log(`Total application and library size: ${Math.round(sizes * 10) / 10}kb`)
+    console.log("Paste this into index.html:");
     console.log("");
     console.log(`<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require.min.js"></script>`);
     console.log(`<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack.min.js">></script>`);
