@@ -10,7 +10,7 @@ const production = process.argv[process.argv.length - 2].split("=").pop() == "pr
 
 const module_name = process.argv[process.argv.length - 1].split("=").pop();
 
-const project_cwd = Buffer.from(process.argv[process.argv.length - 3].split("=").pop(), 'base64').toString('ascii');
+const project_cwd = Buffer.from(process.argv[process.argv.length - 3].split("::").pop(), 'base64').toString('ascii');
 
 if (production) {
     console.log("Production Build:");
