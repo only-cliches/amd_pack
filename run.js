@@ -59,7 +59,7 @@ if (process.argv[2] == "pack") {
                 if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
                     sizes += jsFile.sizeKB;
                     hashes[file] = jsFile.sri;
-                    new_pack_file += `"${file}": "${file}/${jsFile.file}",`;
+                    new_pack_file += `"${file}": "${file}/${jsFile.file}",\n`;
                 }
             });
         }
