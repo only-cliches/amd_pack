@@ -14,9 +14,9 @@ const full_path = (partial_path) => path.join(__cwd, "libs", partial_path.join(p
 
 const package_root = path.join(__cwd, "libs", package);
 
-child.execSync(`npm install ${package}`);
+child.execSync(`npm install ${package}`, { cwd: __cwd});
 try {
-    child.execSync(`npm install @types/${package}`);
+    child.execSync(`npm install @types/${package}`, { cwd: __cwd});
 } catch (e) {}
 
 const copy_types = (scan_dir, subdirs, extension, recursive) => {
@@ -185,9 +185,9 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
     }
 
-    child.execSync(`npm uninstall ${package}`);
+    child.execSync(`npm uninstall ${package}`, { cwd: __cwd});
     try {
-        child.execSync(`npm uninstall @types/${package}`);
+        child.execSync(`npm uninstall @types/${package}`, { cwd: __cwd});
     } catch (e) {}
 
 
