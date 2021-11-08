@@ -22,26 +22,26 @@ if (process.argv[2] == "pack") {
     const files = fs.readdirSync("libs");
 
     let new_pack_file = `
-    (function() {
-        var __counter = 0;
-        var __require = setInterval(function() {
-    
-            if (__counter > 1e3) {
-                clearInterval(__require);
-                console.log("Packer failed to load!")
-            };
-    
-            if (require) {
-                clearInterval(__require);
-                _amd_packer_config();
-            }
-        });
-    
-        function _amd_packer_config() {
-            requirejs.config({
-                baseUrl: 'libs',
-                deps: ['app'],
-                paths: {
+(function() {
+    var __counter = 0;
+    var __require = setInterval(function() {
+
+        if (__counter > 1e3) {
+            clearInterval(__require);
+            console.log("Packer failed to load!")
+        };
+
+        if (require) {
+            clearInterval(__require);
+            _amd_packer_config();
+        }
+    });
+
+    function _amd_packer_config() {
+        requirejs.config({
+            baseUrl: 'libs',
+            deps: ['app'],
+            paths: {
     
     `;
 
@@ -77,10 +77,10 @@ if (process.argv[2] == "pack") {
             }
 
         }
-        });
+    });
 
-        }
-        })();
+}
+})();
     `;
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
