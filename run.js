@@ -83,9 +83,10 @@ if (process.argv[2] == "pack") {
         })();
     `;
 
-    fs.writeFileSync(path.join(__cwd, "libs", "pack.min.js"), new_pack_file);
+    fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file);
 
-    child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.min.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
+    child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
+    fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
 
     if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
         request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
