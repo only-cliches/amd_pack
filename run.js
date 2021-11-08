@@ -11,7 +11,8 @@ const __cwd = process.cwd();
 
 
 const get_file_hash = (file_path) => {
-    return "sha512-" + child.execSync(`shasum -b -a 512 libs/${file_path} | awk '{ print $1 }' | xxd -r -p | base64`).slice(0, shasum.length - 1).toString().replace(/(\r\n|\n|\r)/gm, "");
+    const shaSum = child.execSync(`shasum -b -a 512 libs/${file_path} | awk '{ print $1 }' | xxd -r -p | base64`);
+    return "sha512-" + shaSum.slice(0, shaSum.length - 1).toString().replace(/(\r\n|\n|\r)/gm, "");
 }
 
 if (process.argv[2] == "pack") {
