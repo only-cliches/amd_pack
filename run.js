@@ -172,6 +172,12 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
         copy_types(path.join(__cwd, "node_modules", package), [], ".d.ts", true);
     }
 
+    // copy eot, svg, ttf, and woff files over
+    copy_types(path.join(__cwd, "node_modules", package), [], ".eot", true);
+    copy_types(path.join(__cwd, "node_modules", package), [], ".woff", true);
+    copy_types(path.join(__cwd, "node_modules", package), [], ".svg", true);
+    copy_types(path.join(__cwd, "node_modules", package), [], ".ttf", true);
+
     // sometimes node_modules interior directory gets coppied over, remove it if it's there
     try {
        fs.rmSync(path.join(__cwd, "libs", package, "node_modules"), {recursive: true });
