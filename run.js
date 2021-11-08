@@ -94,7 +94,7 @@ if (process.argv[2] == "pack") {
     }
 
     // load app
-    let files = fs.readdirSync(".");
+    files = fs.readdirSync(".");
 
     for (let i in files) {
         const app_file = type == "dev" ? "app.js" : "app.min.js";
