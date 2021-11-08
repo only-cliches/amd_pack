@@ -26,7 +26,7 @@ if (process.argv[2] == "pack") {
     var __counter = 0;
     var __require = setInterval(function() {
 
-        if (__counter > 1e3) {
+        if (__counter > 60 * 3) { // wait 3 seconds
             clearInterval(__require);
             console.log("Packer failed to load!")
         };
@@ -35,7 +35,7 @@ if (process.argv[2] == "pack") {
             clearInterval(__require);
             _amd_packer_config();
         }
-    });
+    }, 16);
 
     function _amd_packer_config() {
         requirejs.config({
@@ -66,20 +66,22 @@ if (process.argv[2] == "pack") {
     }
 
     new_pack_file += `
-        },
-        onNodeCreated: function(node, config, module, path) {
-            var sri = ${JSON.stringify(hashes, null, 4)}[module];
-            if (sri) {
-                node.setAttribute('integrity', sri);
-                node.setAttribute('crossorigin', 'anonymous');
-            } else {
-                console.log("Security error, no integrity found for module:", module);
+            },
+            onNodeCreated: function(node, config, module, path) {
+                var sri = sri_obj[module];
+
+                if (sri) {
+                    node.setAttribute('integrity', sri);
+                    node.setAttribute('crossorigin', 'anonymous');
+                } else {
+                    console.log("Security error, no integrity found for module:", module);
+                }
+
             }
+        });
+    }
 
-        }
-    });
-
-}
+    var sri_obj = ${JSON.stringify(hashes, null, 4)};
 })();
     `;
 
