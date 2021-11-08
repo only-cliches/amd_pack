@@ -3,6 +3,8 @@ const fs = require("fs");
 const child = require("child_process");
 const webpack = require('webpack');
 
+const __cwd = process.cwd();
+
 // npm view carbon-components version
 // shasum -b -a 512 libs/carbon-components/index.min.js | awk '{ print $1 }' | xxd -r -p | base64
 
@@ -16,17 +18,17 @@ if (production) {
     console.log("Development Build:");
 }
 
-const package_file = JSON.parse(fs.readFileSync(path.join(__dirname, `/node_modules/${module_name}/package.json`)).toString());
+const package_file = JSON.parse(fs.readFileSync(path.join(__cwd, `/node_modules/${module_name}/package.json`)).toString());
 
 const new_package = String(module_name);
 
 module.exports = {
     mode: production ? "production" : "development",
-    entry: path.join(__dirname, `/node_modules/${module_name}/${package_file.main || "index.js"}`),
+    entry: path.join(__cwd, `/node_modules/${module_name}/${package_file.main || "index.js"}`),
     output: {
         library: new_package,
         libraryTarget: 'amd',
-        path: path.resolve(__dirname, 'libs', new_package),
+        path: path.resolve(__cwd, 'libs', new_package),
         filename: `index${production ? ".min": ""}.js`
     },
     devtool: false,
@@ -78,7 +80,7 @@ module.exports = {
                             child.execSync(`npm install ${request}`);
                         } catch (e) { }
                         
-                        const package = JSON.parse(fs.readFileSync(path.join(__dirname, "node_modules", request, "package.json")));
+                        const package = JSON.parse(fs.readFileSync(path.join(__cwd, "node_modules", request, "package.json")));
                         const version = package.version;    
                         depdency[request] = version;
                         fs.writeFileSync("deps.json", JSON.stringify(depdency, null, 4));

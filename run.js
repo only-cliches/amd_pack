@@ -4,13 +4,15 @@ const path = require("path");
 const fs = require("fs");
 const child = require("child_process");
 
+const __cwd = process.cwd();
+
 const package = process.argv[2];
 
 const package_path = package.split("/").filter(f => f && f.length);
 
-const full_path = (partial_path) => path.join(__dirname, "libs", partial_path.join(path.sep));
+const full_path = (partial_path) => path.join(__cwd, "libs", partial_path.join(path.sep));
 
-const package_root = path.join(__dirname, "libs", package);
+const package_root = path.join(__cwd, "libs", package);
 
 child.execSync(`npm install ${package}`);
 try {
@@ -44,27 +46,27 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
     }
 
     try {
-        fs.unlinkSync(path.join(__dirname, "deps.json"));
+        fs.unlinkSync(path.join(__cwd, "deps.json"));
     } catch (e) {
 
     }
 
-    fs.writeFileSync(path.join(__dirname, "deps.json"), "{}");
+    fs.writeFileSync(path.join(__cwd, "deps.json"), "{}");
 
-    const package_json = JSON.parse(fs.readFileSync(path.join(__dirname, "node_modules", package, "package.json")));
+    const package_json = JSON.parse(fs.readFileSync(path.join(__cwd, "node_modules", package, "package.json")));
 
-    let entry = path.join(__dirname, `/node_modules/${package}/${package_json.main || "index.js"}`);
+    let entry = path.join(__cwd, `/node_modules/${package}/${package_json.main || "index.js"}`);
 
     let has_gen_entry = false;
     if (fs.existsSync(entry) == false) {
         has_gen_entry = true;
-        entry = path.join(__dirname, `/node_modules/${package}/index.js`);
+        entry = path.join(__cwd, `/node_modules/${package}/index.js`);
         let includes = [];
-        const files = fs.readdirSync(path.join(__dirname, `/node_modules/${package}`));
+        const files = fs.readdirSync(path.join(__cwd, `/node_modules/${package}`));
         for (key in files) {
 
-            if (fs.fstatSync(fs.openSync(path.join(__dirname, `/node_modules/${package}/${files[key]}`))).isFile() == false) {
-                const subfiles = fs.readdirSync(path.join(__dirname, `/node_modules/${package}/${files[key]}`));
+            if (fs.fstatSync(fs.openSync(path.join(__cwd, `/node_modules/${package}/${files[key]}`))).isFile() == false) {
+                const subfiles = fs.readdirSync(path.join(__cwd, `/node_modules/${package}/${files[key]}`));
                 let possible_files = subfiles.filter(f => f.indexOf(".js") !== -1 && f.indexOf(".json") === -1).sort((a, b) => a.split("").filter(f => f == ".").length > b.split("").filter(f => f == ".").length ? 1 : -1);
                 if (possible_files.length > 0) {
                     includes.push([files[key], possible_files[0]]);
@@ -78,13 +80,13 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
         });
         new_index += "};";
 
-        fs.writeFileSync(path.join(__dirname, `/node_modules/${package}/index.js`), new_index);
+        fs.writeFileSync(path.join(__cwd, `/node_modules/${package}/index.js`), new_index);
     }
 
-    if (fs.existsSync(path.join(__dirname, "node_modules", package, "README.md"))) {
-        fs.copyFileSync(path.join(__dirname, "node_modules", package, "README.md"), path.join(full_path(package_path), "README.md"));
-    } else if (fs.existsSync(path.join(__dirname, "node_modules", package, "readme.md"))) {
-        fs.copyFileSync(path.join(__dirname, "node_modules", package, "readme.md"), path.join(full_path(package_path), "README.md"));
+    if (fs.existsSync(path.join(__cwd, "node_modules", package, "README.md"))) {
+        fs.copyFileSync(path.join(__cwd, "node_modules", package, "README.md"), path.join(full_path(package_path), "README.md"));
+    } else if (fs.existsSync(path.join(__cwd, "node_modules", package, "readme.md"))) {
+        fs.copyFileSync(path.join(__cwd, "node_modules", package, "readme.md"), path.join(full_path(package_path), "README.md"));
     } else {
         // no readme
     }
@@ -117,18 +119,18 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
     const shasumDev = child.execSync(`shasum -b -a 512 libs/${package}/index.js | awk '{ print $1 }' | xxd -r -p | base64`);
 
     try {
-        fs.unlinkSync(path.join(__dirname, "libs", package, "lib.js"));
+        fs.unlinkSync(path.join(__cwd, "libs", package, "lib.js"));
     } catch (e) {
 
     }
 
-    const sizeProd = fs.readFileSync(path.join(__dirname, "libs", package, "index.min.js")).toString().length;
-    const sizeDev = fs.readFileSync(path.join(__dirname, "libs", package, "index.js")).toString().length;
+    const sizeProd = fs.readFileSync(path.join(__cwd, "libs", package, "index.min.js")).toString().length;
+    const sizeDev = fs.readFileSync(path.join(__cwd, "libs", package, "index.js")).toString().length;
 
     // copy css files
-    let css_files = copy_types(path.join(__dirname, "node_modules", package), [], ".css", false);
+    let css_files = copy_types(path.join(__cwd, "node_modules", package), [], ".css", false);
 
-    fs.writeFileSync(path.join(__dirname, "libs", package, "lib.json"), `
+    fs.writeFileSync(path.join(__cwd, "libs", package, "lib.json"), `
     {
         "api": 1,
         "name": "${package}",
@@ -139,7 +141,7 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
         "homepage": "${package_json.homepage}",
         "keywords": ${JSON.stringify(package_json.keywords || [])},
         "license": "${package_json.license}",
-        "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__dirname, "deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
+        "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
         "files": [
             {"file": "index.min.js", "sri": "sha512-${shasum.slice(0, shasum.length - 1)}", "sizeKB": ${sizeProd/1000}}
         ],
@@ -150,13 +152,13 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
     `.trim());
 
     try {
-        fs.unlinkSync(path.join(__dirname, "deps.json"));
+        fs.unlinkSync(path.join(__cwd, "deps.json"));
     } catch (e) {
 
     }
 
     if (has_gen_entry) {
-        fs.unlinkSync(path.join(__dirname, `/node_modules/${package}/index.js`));
+        fs.unlinkSync(path.join(__cwd, `/node_modules/${package}/index.js`));
     }
 
 
@@ -164,18 +166,18 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
 
     // Checks for TS files and copy them over
-    const types_root = path.join(__dirname, "node_modules", "@types", package);
+    const types_root = path.join(__cwd, "node_modules", "@types", package);
 
     // check for ts files
     if (fs.existsSync(types_root)) {
         copy_types(types_root, [], ".d.ts", true);
     } else { // try to find types in node_modules
-        copy_types(path.join(__dirname, "node_modules", package), [], ".d.ts", true);
+        copy_types(path.join(__cwd, "node_modules", package), [], ".d.ts", true);
     }
 
     // sometimes node_modules interior directory gets coppied over, remove it if it's there
     try {
-       fs.rmSync(path.join(__dirname, "libs", package, "node_modules"), {recursive: true });
+       fs.rmSync(path.join(__cwd, "libs", package, "node_modules"), {recursive: true });
     } catch (e) {
 
     }
