@@ -93,7 +93,7 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
     // minified build
     await new Promise((res, rej) => {
-        const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `type=prod`, `mod=${package}`], {
+        const prod = child.spawn(path.join(_dirname, `node_modules/.bin/webpack-cli`), [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `type=prod`, `mod=${package}`], {
             cwd: process.cwd(),
             detached: true,
             stdio: "inherit"
@@ -104,7 +104,7 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
     // non minified build
     await new Promise((res, rej) => {
-        const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `type=dev`, `mod=${package}`], {
+        const prod = child.spawn(path.join(_dirname, `node_modules/.bin/webpack-cli`), [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `type=dev`, `mod=${package}`], {
             cwd: process.cwd(),
             detached: true,
             stdio: "inherit"
