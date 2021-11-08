@@ -110,16 +110,23 @@ if (process.argv[2] == "pack") {
     // load app.js
     files = fs.readdirSync(__cwd);
 
-
-
+    const app_file = type == "dev" ? "app.js" : "app.min.js";
+    let found_app = false;
     for (let i in files) {
-        const app_file = type == "dev" ? "app.js" : "app.min.js";
         if (app_file == files[i]) {
+            found_app = true;
             const sri = get_file_hash(path.join("..", app_file));
-            hashes["app"] =  sri;
+            if (type == "prod") {
+                hashes["app"] =  sri;
+            }
             new_pack_file += `"app": "../${app_file.replace(".js", "")}"`;
             sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
         }
+    }
+
+    if (found_app == false) {
+        console.error(`Unable to find ${app_file} in root!`);
+        process.exit();
     }
 
     new_pack_file += `
@@ -131,7 +138,7 @@ if (process.argv[2] == "pack") {
                     node.setAttribute('integrity', sri);
                     node.setAttribute('crossorigin', 'anonymous');
                 } else {
-                    console.log("Security error, no integrity found for module:", module);
+                    ${type == "prod" ? `console.log("Security error, no integrity found for module:", module)` : ''};
                 }
 
             }
