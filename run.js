@@ -74,7 +74,7 @@ if (process.argv[2] == "pack") {
             const [file_size, sri, location] = handle_library_file(file);
             sizes += file_size;
             hashes[file] = sri;
-            new_pack_file += location;
+            new_pack_file += location.replace(".js", "");
         }
 
         if (isDir && first_char == "@") {
@@ -87,7 +87,7 @@ if (process.argv[2] == "pack") {
                     const [file_size, sri, location] = handle_library_file(path.join(file, nfile));
                     sizes += file_size;
                     hashes[path.join(file, nfile)] = sri;
-                    new_pack_file += location;
+                    new_pack_file += location.replace(".js", "");
                 }
             }
         }
@@ -101,7 +101,7 @@ if (process.argv[2] == "pack") {
         if (app_file == files[i]) {
             const sri = get_file_hash(path.join("..", app_file));
             hashes["app"] =  sri;
-            new_pack_file += `"app": "../${app_file}"`;
+            new_pack_file += `"app": "../${app_file.replace(".js", "")}"`;
         }
     }
 
