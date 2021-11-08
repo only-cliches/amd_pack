@@ -47,6 +47,7 @@ if (process.argv[2] == "pack") {
             // do nothing
         } else {
             console.error("Please use amd_pack in production mode, this build isn't secure!");
+            return;
         }
         `;
     }
