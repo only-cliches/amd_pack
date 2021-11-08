@@ -96,12 +96,15 @@ if (process.argv[2] == "pack") {
     // load app.js
     files = fs.readdirSync(__cwd);
 
+
+
     for (let i in files) {
         const app_file = type == "dev" ? "app.js" : "app.min.js";
         if (app_file == files[i]) {
             const sri = get_file_hash(path.join("..", app_file));
             hashes["app"] =  sri;
             new_pack_file += `"app": "../${app_file.replace(".js", "")}"`;
+            sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
         }
     }
 
@@ -121,7 +124,7 @@ if (process.argv[2] == "pack") {
         });
     }
 
-    var sri_obj = ${JSON.stringify(hashes, null, 4)};
+    var sri_obj = ${type == "prod" ? JSON.stringify(hashes, null, 4) : "{}"};
 })();
     `;
 
