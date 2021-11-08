@@ -85,7 +85,7 @@ if (process.argv[2] == "pack") {
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.min.js"), new_pack_file);
 
-    child.execSync(`.${path.join(__dirname, "node_modules", ".bin", "minify")} ${path.join(__cwd, "libs", "pack.min.js")}`);
+    child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.min.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
 
     if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
         request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
@@ -99,7 +99,7 @@ if (process.argv[2] == "pack") {
     console.log("Completed, paste this into index.html:");
     console.log("");
     console.log(`<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require.min.js"></script>`);
-    console.log(`<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack.js">></script>`);
+    console.log(`<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack.min.js">></script>`);
 
     return;
 
