@@ -43,7 +43,7 @@ module.exports = {
 
             const depdency = JSON.parse((() => {
                 try {
-                    return fs.readFileSync("deps.json");
+                    return fs.readFileSync(path.join(project_cwd, "__deps.json"));
                 } catch (e) {
                     return "{}";
                 }
@@ -74,7 +74,7 @@ module.exports = {
                     try {
                         const version = package_file.dependencies[request];
                         depdency[request] = version;
-                        fs.writeFileSync("deps.json", JSON.stringify(depdency, null, 4));
+                        fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
                     } catch (e) {
                         try {
                             child.execSync(`npm install ${request}`);
@@ -83,7 +83,7 @@ module.exports = {
                         const package = JSON.parse(fs.readFileSync(path.join(project_cwd, "node_modules", request, "package.json")));
                         const version = package.version;    
                         depdency[request] = version;
-                        fs.writeFileSync("deps.json", JSON.stringify(depdency, null, 4));
+                        fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
 
                         try {
                             child.execSync(`npm uninstall ${request}`);

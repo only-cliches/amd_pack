@@ -46,12 +46,12 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
     }
 
     try {
-        fs.unlinkSync(path.join(__cwd, "deps.json"));
+        fs.unlinkSync(path.join(__cwd, "__deps.json"));
     } catch (e) {
 
     }
 
-    fs.writeFileSync(path.join(__cwd, "deps.json"), "{}");
+    fs.writeFileSync(path.join(__cwd, "__deps.json"), "{}");
 
     const package_json = JSON.parse(fs.readFileSync(path.join(__cwd, "node_modules", package, "package.json")));
 
@@ -141,7 +141,7 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
         "homepage": "${package_json.homepage}",
         "keywords": ${JSON.stringify(package_json.keywords || [])},
         "license": "${package_json.license}",
-        "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
+        "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
         "files": [
             {"file": "index.min.js", "sri": "sha512-${shasum.slice(0, shasum.length - 1)}", "sizeKB": ${sizeProd/1000}}
         ],
@@ -152,7 +152,7 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
     `.trim());
 
     try {
-        fs.unlinkSync(path.join(__cwd, "deps.json"));
+        fs.unlinkSync(path.join(__cwd, "__deps.json"));
     } catch (e) {
 
     }
@@ -160,9 +160,6 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
     if (has_gen_entry) {
         fs.unlinkSync(path.join(__cwd, `/node_modules/${package}/index.js`));
     }
-
-
-
 
 
     // Checks for TS files and copy them over
