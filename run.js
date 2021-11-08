@@ -78,7 +78,7 @@ if (process.argv[2] == "pack") {
         }
 
         if (isDir && first_char == "@") {
-            const nested_files = fs.readFileSync(path.join(__cwd, "libs", file));
+            const nested_files = fs.readdirSync(path.join(__cwd, "libs", file));
             for (let k in nested_files) {
                 const nfile = nested_files[k];
                 const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file, nfile))).isDirectory();
