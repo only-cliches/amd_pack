@@ -150,8 +150,8 @@ if (process.argv[2] == "pack") {
     console.log(`Total application and library size: ${Math.round(sizes * 10) / 10}kb`)
     console.log("Paste this into index.html:");
     console.log("");
-    console.log(`<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require.min.js"></script>`);
-    console.log(`<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack.min.js">></script>`);
+    console.log(`<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require.${type == "prod" ? ".min" : ""}js"></script>`);
+    console.log(`<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack.${type == "prod" ? ".min" : ""}js"></script>`);
 
     return;
 
