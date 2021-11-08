@@ -21,13 +21,28 @@ if (process.argv[2] == "pack") {
 
     const files = fs.readdirSync("libs");
 
-    let new_pack_file = `function _amd_rdy(e){"complete"===document.readyState||"interactive"===document.readyState?setTimeout(e,1):document.addEventListener("DOMContentLoaded",e)};`;
-    new_pack_file += `_amd_rdy(function () { let counter = 0; const check_require = setInterval(function () { if (counter > 1e3) { clearInterval(check_require); console.log("Packer failed to load!") }; if (require) { clearInterval(check_require); _amd_packer_config(); }) } else { counter++ } }, 1) });`;
-    new_pack_file += `function _amd_packer_config() {
-        requirejs.config({
-            baseUrl: 'libs',
-            deps: ['app'],
-            paths: {
+    let new_pack_file = `
+    (function() {
+        var __counter = 0;
+        var __require = setInterval(function() {
+    
+            if (__counter > 1e3) {
+                clearInterval(__require);
+                console.log("Packer failed to load!")
+            };
+    
+            if (require) {
+                clearInterval(__require);
+                _amd_packer_config();
+            }
+        });
+    
+        function _amd_packer_config() {
+            requirejs.config({
+                baseUrl: 'libs',
+                deps: ['app'],
+                paths: {
+    
     `;
 
     let hashes = {};
@@ -50,12 +65,23 @@ if (process.argv[2] == "pack") {
         }
     }
 
-    new_pack_file += `},
-            onNodeCreated: function(node, config, module, path) {
-                // node.setAttribute('integrity', integrityForModule);
+    new_pack_file += `
+        },
+        onNodeCreated: function(node, config, module, path) {
+            var sri = ${JSON.stringify(hashes)}[module];
+            if (sri) {
+                node.setAttribute('integrity', sri);
                 node.setAttribute('crossorigin', 'anonymous');
+            } else {
+                console.log("Security error, no integrity found for module:", module);
             }
-        });`;
+
+        }
+        });
+
+        }
+        })();
+    `;
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file);
 
