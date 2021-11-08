@@ -3,8 +3,6 @@ const fs = require("fs");
 const child = require("child_process");
 const webpack = require('webpack');
 
-const __cwd = process.cwd();
-
 // npm view carbon-components version
 // shasum -b -a 512 libs/carbon-components/index.min.js | awk '{ print $1 }' | xxd -r -p | base64
 
@@ -12,23 +10,25 @@ const production = process.argv[process.argv.length - 2].split("=").pop() == "pr
 
 const module_name = process.argv[process.argv.length - 1].split("=").pop();
 
+const project_cwd = Buffer.from(process.argv[process.argv.length - 3].split("=").pop(), 'base64').toString('ascii');
+
 if (production) {
     console.log("Production Build:");
 } else {
     console.log("Development Build:");
 }
 
-const package_file = JSON.parse(fs.readFileSync(path.join(__cwd, `/node_modules/${module_name}/package.json`)).toString());
+const package_file = JSON.parse(fs.readFileSync(path.join(project_cwd, `/node_modules/${module_name}/package.json`)).toString());
 
 const new_package = String(module_name);
 
 module.exports = {
     mode: production ? "production" : "development",
-    entry: path.join(__cwd, `/node_modules/${module_name}/${package_file.main || "index.js"}`),
+    entry: path.join(project_cwd, `/node_modules/${module_name}/${package_file.main || "index.js"}`),
     output: {
         library: new_package,
         libraryTarget: 'amd',
-        path: path.resolve(__cwd, 'libs', new_package),
+        path: path.resolve(project_cwd, 'libs', new_package),
         filename: `index${production ? ".min": ""}.js`
     },
     devtool: false,
@@ -80,7 +80,7 @@ module.exports = {
                             child.execSync(`npm install ${request}`);
                         } catch (e) { }
                         
-                        const package = JSON.parse(fs.readFileSync(path.join(__cwd, "node_modules", request, "package.json")));
+                        const package = JSON.parse(fs.readFileSync(path.join(project_cwd, "node_modules", request, "package.json")));
                         const version = package.version;    
                         depdency[request] = version;
                         fs.writeFileSync("deps.json", JSON.stringify(depdency, null, 4));

@@ -93,8 +93,8 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
     // minified build
     await new Promise((res, rej) => {
-        const prod = child.spawn(path.join(__dirname, `node_modules/.bin/webpack-cli`), [`--progress`, `--config`, path.join(__dirname, `webpack.config.prod.5.js`), `--env`, `type=prod`, `mod=${package}`], {
-            cwd: process.cwd(),
+        const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `cwd=${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
+            cwd: __dirname,
             detached: true,
             stdio: "inherit"
           });
@@ -104,8 +104,8 @@ const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
     // non minified build
     await new Promise((res, rej) => {
-        const prod = child.spawn(path.join(__dirname, `node_modules/.bin/webpack-cli`), [`--progress`, `--config`, path.join(__dirname, `webpack.config.prod.5.js`), `--env`, `type=dev`, `mod=${package}`], {
-            cwd: process.cwd(),
+        const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`,`cwd=${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
+            cwd: __dirname,
             detached: true,
             stdio: "inherit"
           });
