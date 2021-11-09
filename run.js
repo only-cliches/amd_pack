@@ -355,16 +355,16 @@ if (process.argv[2] == "build") {
 
         }
 
-        const sizeProd = fs.readFileSync(path.join(__cwd, "libs", package, "index.min.js")).toString().length;
-        const sizeDev = fs.readFileSync(path.join(__cwd, "libs", package, "index.js")).toString().length;
+        const sizeProd = fs.readFileSync(path.join(__cwd, "libs", pamodule_name || package, "index.min.js")).toString().length;
+        const sizeDev = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.js")).toString().length;
 
         // copy css files
-        let css_files = copy_types(path.join(__cwd, "node_modules", package), [], ".css", false);
+        let css_files = copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".css", false);
 
-        fs.writeFileSync(path.join(__cwd, "libs", package, "lib.json"), `
+        fs.writeFileSync(path.join(__cwd, "libs", module_name || package, "lib.json"), `
         {
             "api": 1,
-            "name": "${package}",
+            "name": "${module_name || package}",
             "description": "${package_json.description}",
             "author": ${package_json.author == undefined ? '""' : JSON.stringify(package_json.author)},
             "version": "${version.slice(0, version.length - 1)}",
@@ -389,25 +389,25 @@ if (process.argv[2] == "build") {
         }
 
         if (has_gen_entry) {
-            fs.unlinkSync(path.join(__cwd, `/node_modules/${package}/index.js`));
+            fs.unlinkSync(path.join(__cwd, `/node_modules/${ module_name ||package}/index.js`));
         }
 
 
         // Checks for TS files and copy them over
-        const types_root = path.join(__cwd, "node_modules", "@types", package);
+        const types_root = path.join(__cwd, "node_modules", "@types", module_name || package);
 
         // check for ts files
         if (fs.existsSync(types_root)) {
             copy_types(types_root, [], ".d.ts", true);
         } else { // try to find types in node_modules
-            copy_types(path.join(__cwd, "node_modules", package), [], ".d.ts", true);
+            copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".d.ts", true);
         }
 
         // copy eot, svg, ttf, and woff files over
-        copy_types(path.join(__cwd, "node_modules", package), [], ".eot", true);
-        copy_types(path.join(__cwd, "node_modules", package), [], ".woff", true);
-        copy_types(path.join(__cwd, "node_modules", package), [], ".svg", true);
-        copy_types(path.join(__cwd, "node_modules", package), [], ".ttf", true);
+        copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".eot", true);
+        copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".woff", true);
+        copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".svg", true);
+        copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".ttf", true);
 
         // sometimes node_modules interior directory gets coppied over, remove it if it's there
         try {
