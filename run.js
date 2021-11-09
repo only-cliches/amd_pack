@@ -98,7 +98,7 @@ if (process.argv[2] == "pack") {
             } else if (file == "amd_lib.json") {
                 const [file_size, sri, location] = handle_library_file(path.join(...other_dirs));
                 sizes += file_size;
-                hashes[file] = sri;
+                hashes[path.join(...other_dirs)] = sri;
                 new_pack_file += location.replace(".js", "");
             }
         }
