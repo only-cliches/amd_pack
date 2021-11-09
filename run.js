@@ -4,7 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const child = require("child_process");
 const request = require("request");
-
+const md5 = require("md5");
 
 
 const __cwd = process.cwd();
@@ -260,6 +260,15 @@ if (process.argv[2] == "build") {
         return "";
     })();
 
+    const styles = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("styles=") !== -1) {
+                return process.argv[i].split("=").pop().split(",");
+            }
+        }
+        return [];
+    })();
+
     const package_path = package.split("/").filter(f => f && f.length);
 
     const full_path = (partial_path) => path.join(__cwd, "libs", partial_path.join(path.sep));
@@ -267,9 +276,6 @@ if (process.argv[2] == "build") {
     const package_root = path.join(__cwd, "libs", module_name || package);
 
     child.execSync(`npm install ${package}`, { cwd: __cwd });
-    try {
-        child.execSync(`npm install @types/${package}`, { cwd: __cwd });
-    } catch (e) { }
 
     const copy_types = (scan_dir, subdirs, extension, recursive) => {
 
@@ -379,11 +385,27 @@ if (process.argv[2] == "build") {
 
         }
 
-        const sizeProd = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.min.js")).toString().length;
+        const prodJSFile = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.min.js")).toString();
+        const prodHash = md5(prodJSFile);
+        const sizeProd = prodJSFile.length;
         const sizeDev = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.js")).toString().length;
 
+        const prodFileName = `index.${prodHash}.min.js`;
+        fs.renameSync(path.join(__cwd, "libs", module_name || package, "index.min.js"), path.join(__cwd, "libs", module_name || package, prodFileName));
+
+        let style_files = [];
+        // copy styles
+        for (let k in styles) {
+            const file_name = styles[k];
+            const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
+
+            fs.copyFileSync(path.join(__cwd, "node_modules", package, file_name), path.join(__cwd, "libs", module_name || package, file_name.split(path.sep).pop()));
+            style_files.push({size: file_contents.length / 1000, file: file_name.split(path.sep).pop(), sri: get_file_hash(`${module_name || package}/${file_name}`)});
+
+        }
+
         // copy css files
-        let css_files = copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".css", false);
+        // let css_files = copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".css", false);
 
         fs.writeFileSync(path.join(__cwd, "libs", module_name || package, "amd_lib.json"), `
         {
@@ -398,10 +420,9 @@ if (process.argv[2] == "build") {
             "license": "${package_json.license}",
             "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
             "files": [
-                {"file": "index.min.js", "sri": "${get_file_hash(`${module_name || package}/index.min.js`)}", "sizeKB": ${sizeProd / 1000}}
-            ],
-            "devFiles": [
-                {"file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}}
+                {"type": "prodjs", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "sizeKB": ${sizeProd / 1000}},
+                {"type": "devjs", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}},
+                ${style_files.map(style => `{"type": "style", "file": "${module_name || package}/${style.file}", "sri": "${style.sri}", "sizeKB": ${style.size}}`).join(",\n")}
             ]
         }
         `.trim());
@@ -418,14 +439,14 @@ if (process.argv[2] == "build") {
 
 
         // Checks for TS files and copy them over
-        const types_root = path.join(__cwd, "node_modules", "@types", module_name || package);
+        // const types_root = path.join(__cwd, "node_modules", "@types", module_name || package);
 
-        // check for ts files
-        if (fs.existsSync(types_root)) {
-            copy_types(types_root, [], ".d.ts", true);
-        } else { // try to find types in node_modules
-            copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".d.ts", true);
-        }
+        // // check for ts files
+        // if (fs.existsSync(types_root)) {
+        //     copy_types(types_root, [], ".d.ts", true);
+        // } else { // try to find types in node_modules
+        //     copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".d.ts", true);
+        // }
 
         // copy eot, svg, ttf, and woff files over
         copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".eot", true);
