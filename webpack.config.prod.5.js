@@ -94,10 +94,6 @@ module.exports = {
                         fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
                     }
 
-                    try {
-                        child.execSync(`npm uninstall ${request}`, {cwd: project_cwd});
-                    } catch (e) { }
-
                 }
 
                 return callback(null, 'amd ' + request);
