@@ -62,14 +62,10 @@ module.exports = {
                 }
                 
                 const first_char = Array.from(request)[0];
-                const num_slahes = Array.from(request).filter(f => f == "/").length;
+                // const num_slahes = Array.from(request).filter(f => f == "/").length;
 
                 if (first_char == "/" || first_char == ".") {
                     return false;
-                } else if (first_char == "@") {
-                    return num_slahes <= 1;
-                } else {
-                    return num_slahes == 0;
                 }
             };
 
