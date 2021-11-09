@@ -34,15 +34,14 @@ if (process.argv[2] == "pack") {
         let file_size = 0;
         let sri = "";
         let location = "";
-        console.log(path.join(__cwd, "libs", folder_name, "amd_lib.json"));
-        const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
-        (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
-            if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
-                file_size += jsFile.sizeKB;
-                sri = jsFile.sri;
-                location = `"${folder_name}": "${folder_name}/${jsFile.file}",\n`;
-            }
-        });
+        // const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
+        // (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
+        //     if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
+        //         file_size += jsFile.sizeKB;
+        //         sri = jsFile.sri;
+        //         location = `"${folder_name}": "${folder_name}/${jsFile.file}",\n`;
+        //     }
+        // });
         return [file_size, sri, location];
     };
 
