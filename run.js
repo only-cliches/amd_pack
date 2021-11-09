@@ -197,13 +197,13 @@ if (process.argv[2] == "pack") {
         } else {
             console.log("Unable to find index HTML file, please paste this into index.html:");
             console.log("");
-            console.log(finsihed);     
+            console.log(finished);     
         }
 
     } else {
         console.log("Paste this into index.html:");
         console.log("");
-        console.log(finsihed);      
+        console.log(finished);      
     }
 
 
@@ -227,6 +227,15 @@ if (process.argv[2] == "build") {
     const index_file = (() => {
         for (let i in process.argv) {
             if (process.argv[i].indexOf("index=") !== -1) {
+                return process.argv[i].split("=").pop();
+            }
+        }
+        return "";
+    })();
+
+    const module_name = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("name=") !== -1) {
                 return process.argv[i].split("=").pop();
             }
         }
@@ -318,7 +327,7 @@ if (process.argv[2] == "build") {
 
         // minified build
         await new Promise((res, rej) => {
-            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
+            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `name::${Buffer.from(module_name).toString('base64')}`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
                 cwd: __dirname,
                 detached: true,
                 stdio: "inherit"
@@ -329,7 +338,7 @@ if (process.argv[2] == "build") {
 
         // non minified build
         await new Promise((res, rej) => {
-            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
+            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `name::${Buffer.from(module_name).toString('base64')}`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
                 cwd: __dirname,
                 detached: true,
                 stdio: "inherit"

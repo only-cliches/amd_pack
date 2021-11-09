@@ -16,6 +16,8 @@ const bundle_deps = JSON.parse(Buffer.from(process.argv[process.argv.length - 4]
 
 const index_file = Buffer.from(process.argv[process.argv.length - 5].split("::").pop(), 'base64').toString('ascii').trim();
 
+const set_module_name = Buffer.from(process.argv[process.argv.length - 6].split("::").pop(), 'base64').toString('ascii').trim();
+
 if (production) {
     console.log("Production Build:");
 } else {
@@ -30,7 +32,7 @@ module.exports = {
     mode: production ? "production" : "development",
     entry: path.join(project_cwd, `/node_modules/${module_name}/${index_file || package_file.main || "index.js"}`),
     output: {
-        library: new_package,
+        library: set_module_name || new_package,
         libraryTarget: 'amd',
         path: path.resolve(project_cwd, 'libs', new_package),
         filename: `index${production ? ".min": ""}.js`
