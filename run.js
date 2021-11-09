@@ -34,6 +34,7 @@ if (process.argv[2] == "pack") {
         let file_size = 0;
         let sri = "";
         let location = "";
+        console.log(path.join(__cwd, "libs", folder_name, "amd_lib.json"));
         const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
         (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
             if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
@@ -48,7 +49,7 @@ if (process.argv[2] == "pack") {
     const handle_js_file = (root_dir, subdirs, file) => {
         let file_size = fs.readFileSync(path.join(root_dir, ...subdirs, file)).toString().length / 1000;
         let sri = get_file_hash(path.join("..", ...subdirs, file));
-        return [file_size, sri, "." + path.join(...subdirs, file.replace('.js', ''))];
+        return [file_size, sri, "./" + path.join(...subdirs, file.replace('.js', ''))];
     };
 
     let new_pack_file = `
@@ -132,8 +133,6 @@ if (process.argv[2] == "pack") {
     };
     scan_files(__cwd, ["pages"]);
     scan_files(__cwd, ["components"]);
-
-    console.log(hashes);
 
     // load app.js
     let files = fs.readdirSync(__cwd);
