@@ -30,21 +30,6 @@ if (process.argv[2] == "pack") {
         return "";
     })();
 
-    const handle_library_file = (folder_name) => {
-        let file_size = 0;
-        let sri = "";
-        let location = "";
-        const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
-        (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
-            if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
-                file_size += jsFile.sizeKB;
-                sri = jsFile.sri;
-                location = `"${folder_name}": "libs/${folder_name}/${jsFile.file}",\n`;
-            }
-        });
-        return [file_size, sri, location];
-    };
-
     const handle_js_file = (root_dir, subdirs, file) => {
         let file_size = fs.readFileSync(path.join(root_dir, ...subdirs, file)).toString().length / 1000;
         let sri = get_file_hash(path.join("..", ...subdirs, file));
@@ -90,6 +75,7 @@ if (process.argv[2] == "pack") {
     let hashes = {};
     let sizes = 0;
 
+    let styles = {};
 
 
     // load libs
@@ -101,10 +87,26 @@ if (process.argv[2] == "pack") {
             if (isDir) {
                 scan_libs(root_dir, [...other_dirs, file]);
             } else if (file == "amd_lib.json") {
-                const [file_size, sri, location] = handle_library_file(path.join(...other_dirs));
-                sizes += file_size;
-                hashes[path.join(...other_dirs)] = sri;
-                new_pack_file += location.replace(".js", "");
+
+                
+                const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", ...other_dirs, "amd_lib.json")).toString());
+                const key = path.join(...other_dirs);
+                styles[key] = [];
+                libJSON.files.forEach((file) => {
+                    // get js file from this library
+                    if ((type == "dev" && file.type == "script_dev") || (type == "prod" && file.type == "script_prod")) {
+                        sizes += file.sizeKB;
+                        hashes[key] = file.sri;
+                        new_pack_file +=  `"${key}": "libs/${key}/${file.file}",\n`.replace(".js", "");
+                    }
+                    // add styles
+                    if (file.type == "style") {
+                        styles[key].push({
+                            sri: file.sri,
+                            file: `libs/${key}/${file.file}`
+                        });
+                    }
+                })
             }
         }
 
@@ -121,9 +123,10 @@ if (process.argv[2] == "pack") {
                 if (isDir) {
                     scan_files(root_dir, [...other_dirs, file]);
                 } else if (file.indexOf(".js") !== -1) {
-                    const [file_size, sri, location] = handle_js_file(root_dir, other_dirs, file);
-                    sizes += file_size;
-                    hashes[location] = sri;
+                    sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString().length / 1000;
+                    let hash_key = path.join(...other_dirs, file.replace('.js', ''));
+                    hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file));
+                    
                 }
             }
         } catch (e) {
@@ -132,6 +135,20 @@ if (process.argv[2] == "pack") {
     };
     scan_files(__cwd, ["pages"]);
     scan_files(__cwd, ["components"]);
+
+    const removeEmptyKeys = (obj) => {
+        if (Object.keys(obj).length) {
+            let new_obj = {};
+            Object.keys(obj).forEach((key) => {
+                if (obj[key] && obj[key].length) {
+                    new_obj[key] = obj[key];
+                }
+            });
+
+            return new_obj;
+        }
+        return {};
+    };
 
     // load app.js
     let files = fs.readdirSync(__cwd);
@@ -167,11 +184,23 @@ if (process.argv[2] == "pack") {
                     ${type == "prod" ? `console.log("Security error, no integrity found for module:", module)` : ''};
                 }
 
+                if (style_obj[module] && style_obj[module].length) {
+                    style_obj[module].forEach(function(style) {
+                        var elem = document.createElement("link");
+                        elem.setAttribute("rel", "stylesheet");
+                        elem.setAttribute("href", style.file);
+                        ${type == "prod" ? `elem.setAttribute("integrity", style.sri);` : ""}
+                        ${type == "prod" ? `elem.setAttribute("crossorigin", "anonymous");` : ""}
+                        document.head.appendChild(elem);
+                    });
+                }
+
             }
         });
     }
 
     var sri_obj = ${type == "prod" ? JSON.stringify(hashes, null, 4) : "{}"};
+    var style_obj = ${JSON.stringify(removeEmptyKeys(styles), null, 4)};
 })();`;
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
