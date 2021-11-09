@@ -98,20 +98,32 @@ if (process.argv[2] == "pack") {
             for (let i in files) {
                 const file = files[i];
                 const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
+
                 if (isDir) {
                     scan_files(root_dir, [...other_dirs, file]);
-                } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") === -1) { // not a minified file
+                } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") == -1) { // not a minified file
                     let hash_key = path.join(...other_dirs, file.replace('.js', ''));
                     console.log(`Bundling application file ${path.join(...other_dirs, file)}`);
 
                     if (type == "prod") {
-                        child.execSync(`./node_modules/.bin/minify ${path.join(root_dir, ...other_dirs, file)} > ${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}`, {cwd: __dirname});
-                        const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
-                        hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
-                        sizes += contents.length / 1000;
-                        const new_name = file.replace(".js", `.min.${md5(contents)}.js`);
-                        fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
-                        paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
+
+                        const file_hash = md5(fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString());
+                        const new_name = file.replace(".js", `.min.${file_hash}.js`);
+
+                        if (!fs.existsSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)))) {
+                            child.execSync(`./node_modules/.bin/minify ${path.join(root_dir, ...other_dirs, file)} > ${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}`, {cwd: __dirname});
+                            const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
+                            hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
+                            sizes += contents.length / 1000;
+                            fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
+                            paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
+                        } else {
+                            hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)));
+                            paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
+                            sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`))).length / 1000;
+                        }
+
+
                     } else {
                         sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString().length / 1000;
                         hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file));
@@ -119,7 +131,7 @@ if (process.argv[2] == "pack") {
                 }
             }
         } catch (e) {
-
+           
         }
     };
     scan_files(__cwd, ["pages"]);
@@ -150,13 +162,25 @@ if (process.argv[2] == "pack") {
             found_app = true;
             console.log("Bundling app.js");
             if (type == "prod") {
-                child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "app.js")} > ${path.join(__cwd, "app.min.js")}`, {cwd: __dirname});
-                const sri = get_file_hash(path.join("..", "app.min.js"));
-                hashes["app"] =  sri;
-                const contents = fs.readFileSync(path.join(__cwd, "app.min.js")).toString();
-                sizes += contents.length / 1000;
-                paths["app"] = `./app.min.${md5(hashes)}`;
-                fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${md5(hashes)}.js`));
+                const app_hash = md5(fs.readFileSync(path.join(__cwd, "app.js")).toString());
+
+                if (!fs.existsSync(path.join(__cwd, `app.min.${app_hash}.js`))) {
+                    console.log("NOT CACHED");
+                    child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "app.js")} > ${path.join(__cwd, "app.min.js")}`, {cwd: __dirname});
+                    const sri = get_file_hash(path.join("..", "app.min.js"));
+                    hashes["app"] =  sri;
+                    const contents = fs.readFileSync(path.join(__cwd, "app.min.js")).toString();
+                    sizes += contents.length / 1000;
+                    paths["app"] = `./app.min.${app_hash}`;
+                    fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${app_hash}.js`));
+                } else {
+                    const sri = get_file_hash(path.join("..", `app.min.${app_hash}.js`));
+                    hashes["app"] =  sri;
+                    sizes += fs.readFileSync(path.join(__cwd, `app.min.${app_hash}.js`)).toString().length / 1000;
+                    paths["app"] = `./app.min.${app_hash}`;
+                }
+
+
             } else {
                 paths["app"] = `./${app_file.replace(".js", "")}`;
                 sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
@@ -241,7 +265,7 @@ if (process.argv[2] == "pack") {
     if (type == "dev") {
         if (!fs.existsSync(path.join(__cwd, "libs", "require.js"))) {
             request('https://requirejs.org/docs/release/2.3.6/comments/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.js")));
-            child.execSync("sleep(0.5)");
+            child.execSync("sleep 0.5");
         }
     
     } else {
@@ -251,7 +275,7 @@ if (process.argv[2] == "pack") {
 
         if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
             request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
-            child.execSync("sleep(0.5)");
+            child.execSync("sleep 0.5");
         }
     
     }
@@ -272,8 +296,8 @@ if (process.argv[2] == "pack") {
     console.log(`Total application, library & styles size: ${Math.round(sizes * 10) / 10}kb`);
     console.log("");
 
-    let finished = `<script async integrity="${shasumRequire}" crossorigin="anonymous" src="${cdn_url}/libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
-    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="${cdn_url}/${pack_file}"></script>\n`;
+    let finished = `<script async ${type == "prod" ? `integrity="${shasumRequire}" crossorigin="anonymous"` : ""} src="${cdn_url}/libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
+    finished += `<script async ${type == "prod" ? `integrity="${shasum}" crossorigin="anonymous"` : ""} src="${cdn_url}/${pack_file}"></script>\n`;
     
     if (write_html && fs.existsSync(write_html)) {
         let html_file = fs.readFileSync(write_html).toString();
