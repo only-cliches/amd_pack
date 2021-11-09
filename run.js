@@ -270,8 +270,8 @@ if (process.argv[2] == "pack") {
     console.log(`Total application, library & styles size: ${Math.round(sizes * 10) / 10}kb`);
     console.log("");
 
-    let finished = `<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
-    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="${pack_file}"></script>\n`;
+    let finished = `<script async integrity="${shasumRequire}" crossorigin="anonymous" src="${cdn_url}/libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
+    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="${cdn_url}/${pack_file}"></script>\n`;
     
     if (write_html && fs.existsSync(write_html)) {
         let html_file = fs.readFileSync(write_html).toString();
