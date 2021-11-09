@@ -113,17 +113,21 @@ if (process.argv[2] == "pack") {
 
     // load app files
     const scan_files = (root_dir, other_dirs) => {
-        let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
-        for (let i in files) {
-            const file = files[i];
-            const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
-            if (isDir) {
-                scan_files(root_dir, [...other_dirs, file]);
-            } else if (file.indexOf(".js") !== -1) {
-                const [file_size, sri, location] = handle_js_file(root_dir, other_dirs, file);
-                sizes += file_size;
-                hashes[location] = sri;
+        try {
+            let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
+            for (let i in files) {
+                const file = files[i];
+                const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
+                if (isDir) {
+                    scan_files(root_dir, [...other_dirs, file]);
+                } else if (file.indexOf(".js") !== -1) {
+                    const [file_size, sri, location] = handle_js_file(root_dir, other_dirs, file);
+                    sizes += file_size;
+                    hashes[location] = sri;
+                }
             }
+        } catch (e) {
+
         }
     };
     scan_files(__cwd, ["pages"]);
