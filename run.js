@@ -420,8 +420,8 @@ if (process.argv[2] == "build") {
             "license": "${package_json.license}",
             "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
             "files": [
-                {"type": "prodjs", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "sizeKB": ${sizeProd / 1000}},
-                {"type": "devjs", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}}${style_files.length ? "," : ""}
+                {"type": "script_prod", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "sizeKB": ${sizeProd / 1000}},
+                {"type": "script_dev", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}}${style_files.length ? "," : ""}
                 ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "sizeKB": ${style.size}}`).join(",\n")}
             ]
         }
