@@ -254,20 +254,26 @@ if (process.argv[2] == "build") {
     } catch (e) { }
 
     const copy_types = (scan_dir, subdirs, extension, recursive) => {
-        const files = fs.readdirSync(path.join(scan_dir, ...subdirs));
-        try {
-            fs.mkdirSync(path.join(package_root, ...subdirs));
-        } catch (e) { }
 
         let copy = [];
-        for (key in files) {
-            if (files[key].indexOf(extension) !== -1) {
-                fs.copyFileSync(path.join(scan_dir, ...subdirs, files[key]), path.join(package_root, ...subdirs, files[key]));
-                copy.push(path.join(package_root, ...subdirs, files[key]));
-            } else if (fs.fstatSync(fs.openSync(path.join(scan_dir, ...subdirs, files[key]))).isFile() == false && recursive) {
-                copy.concat(copy_types(scan_dir, [...subdirs, files[key]], extension, true));
+
+        try {
+            const files = fs.readdirSync(path.join(scan_dir, ...subdirs));
+            try {
+                fs.mkdirSync(path.join(package_root, ...subdirs));
+            } catch (e) { }
+            for (key in files) {
+                if (files[key].indexOf(extension) !== -1) {
+                    fs.copyFileSync(path.join(scan_dir, ...subdirs, files[key]), path.join(package_root, ...subdirs, files[key]));
+                    copy.push(path.join(package_root, ...subdirs, files[key]));
+                } else if (fs.fstatSync(fs.openSync(path.join(scan_dir, ...subdirs, files[key]))).isFile() == false && recursive) {
+                    copy.concat(copy_types(scan_dir, [...subdirs, files[key]], extension, true));
+                }
             }
+        } catch(e) {
+            
         }
+
         return copy
     }
 
