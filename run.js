@@ -21,6 +21,14 @@ if (process.argv[2] == "pack") {
 
     const type = process.argv[3] || "dev"; // dev or prod
 
+    let start = Date.now();
+
+    if (type == "dev") {
+        console.log("BUNDLING FOR DEVELOPMENT");
+    } else {
+        console.log("BUNDLING FOR PRODUCTION");
+    }
+
     const write_html = (() => {
         for (let i in process.argv) {
             if (process.argv[i].indexOf("html=") !== -1) {
@@ -30,12 +38,14 @@ if (process.argv[2] == "pack") {
         return "";
     })();
 
-    const handle_js_file = (root_dir, subdirs, file) => {
-        let file_size = fs.readFileSync(path.join(root_dir, ...subdirs, file)).toString().length / 1000;
-        let sri = get_file_hash(path.join("..", ...subdirs, file));
-        return [file_size, sri, path.join(...subdirs, file.replace('.js', ''))];
-    };
-
+    const cdn_url = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("cdn=") !== -1) {
+                return process.argv[i].split("=").pop();
+            }
+        }
+        return "";
+    })();
 
     
     let paths = {};
@@ -56,7 +66,7 @@ if (process.argv[2] == "pack") {
                 scan_libs(root_dir, [...other_dirs, file]);
             } else if (file == "amd_lib.json") {
 
-                
+                console.log(`Bundling library ${path.join("libs", ...other_dirs)}`);
                 const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", ...other_dirs, "amd_lib.json")).toString());
                 const key = path.join(...other_dirs);
                 styles[key] = [];
@@ -92,6 +102,8 @@ if (process.argv[2] == "pack") {
                     scan_files(root_dir, [...other_dirs, file]);
                 } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") === -1) { // not a minified file
                     let hash_key = path.join(...other_dirs, file.replace('.js', ''));
+                    console.log(`Bundling application file ${path.join(...other_dirs, file)}`);
+
                     if (type == "prod") {
                         child.execSync(`./node_modules/.bin/minify ${path.join(root_dir, ...other_dirs, file)} > ${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}`, {cwd: __dirname});
                         const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
@@ -136,7 +148,7 @@ if (process.argv[2] == "pack") {
     for (let i in files) {
         if (app_file == files[i]) {
             found_app = true;
-            
+            console.log("Bundling app.js");
             if (type == "prod") {
                 child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "app.js")} > ${path.join(__cwd, "app.min.js")}`, {cwd: __dirname});
                 const sri = get_file_hash(path.join("..", "app.min.js"));
@@ -146,7 +158,7 @@ if (process.argv[2] == "pack") {
                 paths["app"] = `./app.min.${md5(hashes)}`;
                 fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${md5(hashes)}.js`));
             } else {
-                new_pack_file += `"app": "./${app_file.replace(".js", "")}"`;
+                paths["app"] = `./${app_file.replace(".js", "")}`;
                 sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
             }
             
@@ -190,6 +202,7 @@ if (process.argv[2] == "pack") {
 
         function _amd_packer_config() {
             requirejs.config({
+                baseUrl: "${cdn_url}",
                 deps: ['app'],
                 paths: ${JSON.stringify(paths, null, 4)},
                 onNodeCreated: function(node, config, module, path) {
@@ -221,6 +234,8 @@ if (process.argv[2] == "pack") {
         var style_obj = ${JSON.stringify(removeEmptyKeys(styles), null, 4)};
     })();`.trim();
 
+    console.log("Writing package file");
+
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
 
     if (type == "dev") {
@@ -251,7 +266,7 @@ if (process.argv[2] == "pack") {
     }
 
 
-    console.log("Completed!");
+    console.log(`Completed in ${Math.round((Date.now() - start) / 100) / 10} seconds!`);
     console.log(`Total application, library & styles size: ${Math.round(sizes * 10) / 10}kb`);
     console.log("");
 
