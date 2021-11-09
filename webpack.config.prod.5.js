@@ -34,7 +34,7 @@ module.exports = {
     output: {
         library: set_module_name || new_package,
         libraryTarget: 'amd',
-        path: path.resolve(project_cwd, 'libs', new_package),
+        path: path.resolve(project_cwd, 'libs', set_module_name || new_package),
         filename: `index${production ? ".min": ""}.js`
     },
     devtool: false,
