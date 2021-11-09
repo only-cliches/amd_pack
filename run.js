@@ -133,6 +133,8 @@ if (process.argv[2] == "pack") {
     scan_files(__cwd, ["pages"]);
     scan_files(__cwd, ["components"]);
 
+    console.log(hashes);
+
     // load app.js
     let files = fs.readdirSync(__cwd);
 
