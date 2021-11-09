@@ -397,11 +397,13 @@ if (process.argv[2] == "build") {
         // copy styles
         for (let k in styles) {
             const file_name = styles[k];
-            const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
+            if (fs.existsSync(path.join(__cwd, "node_modules", package, file_name))) {
+                const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
 
-            fs.copyFileSync(path.join(__cwd, "node_modules", package, file_name), path.join(__cwd, "libs", module_name || package, file_name.split(path.sep).pop()));
-
-            style_files.push({size: file_contents.length / 1000, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join( module_name || package, file_name.split(path.sep).pop()))});
+                fs.copyFileSync(path.join(__cwd, "node_modules", package, file_name), path.join(__cwd, "libs", module_name || package, file_name.split(path.sep).pop()));
+    
+                style_files.push({size: file_contents.length / 1000, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join( module_name || package, file_name.split(path.sep).pop()))});
+            }
         }
 
         // copy css files
