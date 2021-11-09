@@ -126,8 +126,8 @@ if (process.argv[2] == "pack") {
             }
         }
     };
-    scan_files(path.join(__cwd, "pages"));
-    scan_files(path.join(__cwd, "components"));
+    scan_files(__cwd, ["pages"]);
+    scan_files(__cwd, ["components"]);
 
     // load app.js
     let files = fs.readdirSync(__cwd);
