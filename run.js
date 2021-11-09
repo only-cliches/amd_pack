@@ -241,6 +241,7 @@ if (process.argv[2] == "pack") {
     if (type == "dev") {
         if (!fs.existsSync(path.join(__cwd, "libs", "require.js"))) {
             request('https://requirejs.org/docs/release/2.3.6/comments/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.js")));
+            child.execSync("sleep(0.5)");
         }
     
     } else {
@@ -250,6 +251,7 @@ if (process.argv[2] == "pack") {
 
         if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
             request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
+            child.execSync("sleep(0.5)");
         }
     
     }
