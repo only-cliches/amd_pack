@@ -400,8 +400,7 @@ if (process.argv[2] == "build") {
             const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
 
             fs.copyFileSync(path.join(__cwd, "node_modules", package, file_name), path.join(__cwd, "libs", module_name || package, file_name.split(path.sep).pop()));
-            style_files.push({size: file_contents.length / 1000, file: file_name.split(path.sep).pop(), sri: get_file_hash(`${module_name || package}/${file_name}`)});
-
+            style_files.push({size: file_contents.length / 1000, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join(__dirname, module_name || package, file_name))});
         }
 
         // copy css files
