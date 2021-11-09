@@ -36,41 +36,9 @@ if (process.argv[2] == "pack") {
         return [file_size, sri, path.join(...subdirs, file.replace('.js', ''))];
     };
 
-    let new_pack_file = `
-(function() {
-    var __counter = 0;
-    var __require = setInterval(function() {`;
+
     
-    if (type == "dev") {
-        new_pack_file += `
-        if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-            // do nothing
-        } else {
-            console.error("Please use amd_pack in production mode, this build isn't secure!");
-            clearInterval(__require);
-            return;
-        }
-        `;
-    }
-    
-    new_pack_file += `
-
-        if (__counter > 60 * 3) { // wait 3 seconds
-            clearInterval(__require);
-            console.log("Packer failed to load!")
-        };
-
-        if (require) {
-            clearInterval(__require);
-            _amd_packer_config();
-        }
-    }, 16);
-
-    function _amd_packer_config() {
-        requirejs.config({
-            deps: ['app'],
-            paths: {
-`;
+    let paths = {};
 
     let hashes = {};
     let sizes = 0;
@@ -97,7 +65,7 @@ if (process.argv[2] == "pack") {
                     if ((type == "dev" && file.type == "script_dev") || (type == "prod" && file.type == "script_prod")) {
                         sizes += file.sizeKB;
                         hashes[key] = file.sri;
-                        new_pack_file +=  `"${key}": "libs/${key}/${file.file}",\n`.replace(".js", "");
+                        paths[key] = `libs/${key}/${file.file}`.replace(".js", "")
                     }
                     // add styles
                     if (file.type == "style") {
@@ -122,11 +90,20 @@ if (process.argv[2] == "pack") {
                 const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
                 if (isDir) {
                     scan_files(root_dir, [...other_dirs, file]);
-                } else if (file.indexOf(".js") !== -1) {
-                    sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString().length / 1000;
+                } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") === -1) { // not a minified file
                     let hash_key = path.join(...other_dirs, file.replace('.js', ''));
-                    hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file));
-                    
+                    if (type == "prod") {
+                        child.execSync(`./node_modules/.bin/minify ${path.join(root_dir, ...other_dirs, file)} > ${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}`, {cwd: __dirname});
+                        const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
+                        hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
+                        sizes += contents.length / 1000;
+                        const new_name = file.replace(".js", `.min.${md5(contents)}.js`);
+                        fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
+                        paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
+                    } else {
+                        sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString().length / 1000;
+                        hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file));
+                    }
                 }
             }
         } catch (e) {
@@ -153,17 +130,26 @@ if (process.argv[2] == "pack") {
     // load app.js
     let files = fs.readdirSync(__cwd);
 
-    const app_file = type == "dev" ? "app.js" : "app.min.js";
+    const app_file = "app.js";
     let found_app = false;
+
     for (let i in files) {
         if (app_file == files[i]) {
             found_app = true;
-            const sri = get_file_hash(path.join("..", app_file));
+            
             if (type == "prod") {
+                child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "app.js")} > ${path.join(__cwd, "app.min.js")}`, {cwd: __dirname});
+                const sri = get_file_hash(path.join("..", "app.min.js"));
                 hashes["app"] =  sri;
+                const contents = fs.readFileSync(path.join(__cwd, "app.min.js")).toString();
+                sizes += contents.length / 1000;
+                paths["app"] = `./app.min.${md5(hashes)}`;
+                fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${md5(hashes)}.js`));
+            } else {
+                new_pack_file += `"app": "./${app_file.replace(".js", "")}"`;
+                sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
             }
-            new_pack_file += `"app": "./${app_file.replace(".js", "")}"`;
-            sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
+            
         }
     }
 
@@ -172,36 +158,68 @@ if (process.argv[2] == "pack") {
         process.exit();
     }
 
-    new_pack_file += `
-            },
-            onNodeCreated: function(node, config, module, path) {
-                var sri = sri_obj[module];
-
-                if (sri) {
-                    node.setAttribute('integrity', sri);
-                    node.setAttribute('crossorigin', 'anonymous');
-                } else {
-                    ${type == "prod" ? `console.log("Security error, no integrity found for module:", module)` : ''};
-                }
-
-                if (style_obj[module] && style_obj[module].length) {
-                    style_obj[module].forEach(function(style) {
-                        var elem = document.createElement("link");
-                        elem.setAttribute("rel", "stylesheet");
-                        elem.setAttribute("href", style.file);
-                        ${type == "prod" ? `elem.setAttribute("integrity", style.sri);` : ""}
-                        ${type == "prod" ? `elem.setAttribute("crossorigin", "anonymous");` : ""}
-                        document.head.appendChild(elem);
-                    });
-                }
-
+    let new_pack_file = `
+    (function() {
+        var __counter = 0;
+        var __require = setInterval(function() {`;
+        
+        if (type == "dev") {
+            new_pack_file += `
+            if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+                // do nothing
+            } else {
+                console.error("Please use amd_pack in production mode, this build isn't secure!");
+                clearInterval(__require);
+                return;
             }
-        });
-    }
+            `;
+        }
 
-    var sri_obj = ${type == "prod" ? JSON.stringify(hashes, null, 4) : "{}"};
-    var style_obj = ${JSON.stringify(removeEmptyKeys(styles), null, 4)};
-})();`;
+        new_pack_file += `
+
+            if (__counter > 60 * 3) { // wait 3 seconds
+                clearInterval(__require);
+                console.log("Packer failed to load!")
+            };
+
+            if (require) {
+                clearInterval(__require);
+                _amd_packer_config();
+            }
+        }, 16);
+
+        function _amd_packer_config() {
+            requirejs.config({
+                deps: ['app'],
+                paths: ${JSON.stringify(paths, null, 4)},
+                onNodeCreated: function(node, config, module, path) {
+                    var sri = sri_obj[module];
+
+                    if (sri) {
+                        node.setAttribute('integrity', sri);
+                        node.setAttribute('crossorigin', 'anonymous');
+                    } else {
+                        ${type == "prod" ? `console.log("Security error, no integrity found for module:", module)` : ''};
+                    }
+
+                    if (style_obj[module] && style_obj[module].length) {
+                        style_obj[module].forEach(function(style) {
+                            var elem = document.createElement("link");
+                            elem.setAttribute("rel", "stylesheet");
+                            elem.setAttribute("href", style.file);
+                            ${type == "prod" ? `elem.setAttribute("integrity", style.sri);` : ""}
+                            ${type == "prod" ? `elem.setAttribute("crossorigin", "anonymous");` : ""}
+                            document.head.appendChild(elem);
+                        });
+                    }
+
+                }
+            });
+        }
+
+        var sri_obj = ${type == "prod" ? JSON.stringify(hashes, null, 4) : "{}"};
+        var style_obj = ${JSON.stringify(removeEmptyKeys(styles), null, 4)};
+    })();`.trim();
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
 
@@ -224,13 +242,21 @@ if (process.argv[2] == "pack") {
     const shasum = get_file_hash(type == "dev" ? "pack.js" : "pack.min.js");
     const shasumRequire = get_file_hash(type == "dev" ? "require.js" : "require.min.js");
 
+    let pack_file = "libs/pack.js";
+
+    if (type == "prod") {
+        const file_hash = md5(fs.readFileSync(path.join(__cwd, "libs", "pack.min.js")).toString());
+        fs.renameSync(path.join(__cwd, "libs", "pack.min.js"), path.join(__cwd, "libs", `pack.min.${file_hash}.js`));
+        pack_file = `libs/pack.min.${file_hash}.js`;
+    }
+
 
     console.log("Completed!");
-    console.log(`Total application and library size: ${Math.round(sizes * 10) / 10}kb`);
+    console.log(`Total application, library & styles size: ${Math.round(sizes * 10) / 10}kb`);
     console.log("");
 
     let finished = `<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
-    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack${type == "prod" ? ".min" : ""}.js"></script>\n`;
+    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="${pack_file}"></script>\n`;
     
     if (write_html && fs.existsSync(write_html)) {
         let html_file = fs.readFileSync(write_html).toString();
