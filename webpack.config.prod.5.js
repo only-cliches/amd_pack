@@ -12,6 +12,8 @@ const module_name = process.argv[process.argv.length - 1].split("=").pop();
 
 const project_cwd = Buffer.from(process.argv[process.argv.length - 3].split("::").pop(), 'base64').toString('ascii');
 
+const bundle_deps = JSON.parse(Buffer.from(process.argv[process.argv.length - 4].split("::").pop(), 'base64').toString('ascii')).map(r => new RegExp(r));
+
 if (production) {
     console.log("Production Build:");
 } else {
@@ -67,7 +69,7 @@ module.exports = {
                 }
             };
 
-            if (is_remote_dependency()) {
+            if (is_remote_dependency() || bundle_deps.filter(r => r.match(request)).length > 0) {
             
 
                 if (!depdency[request]) {
