@@ -264,7 +264,7 @@ if (process.argv[2] == "build") {
 
     const full_path = (partial_path) => path.join(__cwd, "libs", partial_path.join(path.sep));
 
-    const package_root = path.join(__cwd, "libs", package);
+    const package_root = path.join(__cwd, "libs", module_name || package);
 
     child.execSync(`npm install ${package}`, { cwd: __cwd });
     try {
