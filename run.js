@@ -440,11 +440,6 @@ if (process.argv[2] == "build") {
 
         }
 
-        child.execSync(`npm uninstall ${package}`, { cwd: __cwd });
-        try {
-            child.execSync(`npm uninstall @types/${package}`, { cwd: __cwd });
-        } catch (e) { }
-
 
     })()
 
