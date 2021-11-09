@@ -69,7 +69,7 @@ module.exports = {
                 }
             };
 
-            if (is_remote_dependency() || bundle_deps.filter(r => r.test(request)).length == 0) {
+            if (is_remote_dependency() && bundle_deps.filter(r => r.test(request)).length == 0) {
             
 
                 if (!depdency[request]) {
