@@ -34,7 +34,7 @@ if (process.argv[2] == "pack") {
         let file_size = 0;
         let sri = "";
         let location = "";
-        const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "lib.json")).toString());
+        const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
         (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
             if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
                 file_size += jsFile.sizeKB;
@@ -84,40 +84,60 @@ if (process.argv[2] == "pack") {
 
     let hashes = {};
     let sizes = 0;
-    
+
+
+
     // load libs
-    let files = fs.readdirSync("libs");
-
-    for (let i in files) {
-        const file = files[i];
-        const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file))).isDirectory();
-        const first_char = Array.from(file)[0];
-
-        if (isDir && first_char != "@") {
-            const [file_size, sri, location] = handle_library_file(file);
-            sizes += file_size;
-            hashes[file] = sri;
-            new_pack_file += location.replace(".js", "");
-        }
-
-        if (isDir && first_char == "@") {
-            const nested_files = fs.readdirSync(path.join(__cwd, "libs", file));
-            for (let k in nested_files) {
-                const nfile = nested_files[k];
-                const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file, nfile))).isDirectory();
-
-                if (isDir) {
-                    const [file_size, sri, location] = handle_library_file(path.join(file, nfile));
-                    sizes += file_size;
-                    hashes[path.join(file, nfile)] = sri;
-                    new_pack_file += location.replace(".js", "");
-                }
+    const scan_libs = (root_dir, other_dirs) => {
+        let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
+        for (let i in files) {
+            const file = files[i];
+            const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
+            if (isDir) {
+                scan_libs(root_dir, [...other_dirs, file]);
+            } else if (file == "amd_lib.json") {
+                const [file_size, sri, location] = handle_library_file(path.join(...other_dirs));
+                sizes += file_size;
+                hashes[file] = sri;
+                new_pack_file += location.replace(".js", "");
             }
         }
-    }
+
+    };
+    scan_libs(path.join(__cwd, "libs"), []);
+    
+    // let files = fs.readdirSync("libs");
+
+    // for (let i in files) {
+    //     const file = files[i];
+    //     const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file))).isDirectory();
+    //     const first_char = Array.from(file)[0];
+
+    //     if (isDir && first_char != "@") {
+    //         const [file_size, sri, location] = handle_library_file(file);
+    //         sizes += file_size;
+    //         hashes[file] = sri;
+    //         new_pack_file += location.replace(".js", "");
+    //     }
+
+    //     if (isDir && first_char == "@") {
+    //         const nested_files = fs.readdirSync(path.join(__cwd, "libs", file));
+    //         for (let k in nested_files) {
+    //             const nfile = nested_files[k];
+    //             const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file, nfile))).isDirectory();
+
+    //             if (isDir) {
+    //                 const [file_size, sri, location] = handle_library_file(path.join(file, nfile));
+    //                 sizes += file_size;
+    //                 hashes[path.join(file, nfile)] = sri;
+    //                 new_pack_file += location.replace(".js", "");
+    //             }
+    //         }
+    //     }
+    // }
 
     // load app.js
-    files = fs.readdirSync(__cwd);
+    let files = fs.readdirSync(__cwd);
 
     const app_file = type == "dev" ? "app.js" : "app.min.js";
     let found_app = false;
@@ -367,7 +387,7 @@ if (process.argv[2] == "build") {
         // copy css files
         let css_files = copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".css", false);
 
-        fs.writeFileSync(path.join(__cwd, "libs", module_name || package, "lib.json"), `
+        fs.writeFileSync(path.join(__cwd, "libs", module_name || package, "amd_lib.json"), `
         {
             "api": 1,
             "name": "${module_name || package}",
