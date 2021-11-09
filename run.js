@@ -180,7 +180,7 @@ if (process.argv[2] == "pack") {
 
 }
 
-if (process.argv[2] == "compile") {
+if (process.argv[2] == "build") {
 
     const package = process.argv[3];
 
