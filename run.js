@@ -355,7 +355,7 @@ if (process.argv[2] == "build") {
 
         }
 
-        const sizeProd = fs.readFileSync(path.join(__cwd, "libs", pamodule_name || package, "index.min.js")).toString().length;
+        const sizeProd = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.min.js")).toString().length;
         const sizeDev = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.js")).toString().length;
 
         // copy css files
