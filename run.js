@@ -21,6 +21,15 @@ if (process.argv[2] == "pack") {
 
     const type = process.argv[3] || "dev"; // dev or prod
 
+    const write_html = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("html=") !== -1) {
+                return process.argv[i].split("=").pop();
+            }
+        }
+        return "";
+    })();
+
     const handle_library_file = (folder_name) => {
         let file_size = 0;
         let sri = "";
@@ -170,11 +179,33 @@ if (process.argv[2] == "pack") {
 
 
     console.log("Completed!");
-    console.log(`Total application and library size: ${Math.round(sizes * 10) / 10}kb`)
-    console.log("Paste this into index.html:");
+    console.log(`Total application and library size: ${Math.round(sizes * 10) / 10}kb`);
     console.log("");
-    console.log(`<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require${type == "prod" ? ".min" : ""}.js"></script>`);
-    console.log(`<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack${type == "prod" ? ".min" : ""}.js"></script>`);
+
+    let finished = `<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
+    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack${type == "prod" ? ".min" : ""}.js"></script>`;
+    
+    if (write_html && fs.existsSync(write_html)) {
+        let html_file = fs.readFileSync(write_html).toString();
+        const start_template = html_file.indexOf("<!-- LOADER -->");
+        const end_template = html_file.indexOf("<!-- /LOADER -->");
+        if (start_template !== -1 && end_template !== -1) {
+            let split_file = Array.from(html_file);
+            split_file.splice(start_template + 16, end_template - (start_template + 16), ...Array.from(finished));
+            fs.writeFileSync(write_html, split_file.join(""));
+            console.log(`Written to ${write_html}`);
+        } else {
+            console.log("Unable to find index HTML file, please paste this into index.html:");
+            console.log("");
+            console.log(finsihed);     
+        }
+
+    } else {
+        console.log("Paste this into index.html:");
+        console.log("");
+        console.log(finsihed);      
+    }
+
 
     return;
 
