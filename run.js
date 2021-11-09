@@ -34,21 +34,21 @@ if (process.argv[2] == "pack") {
         let file_size = 0;
         let sri = "";
         let location = "";
-        // const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
-        // (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
-        //     if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
-        //         file_size += jsFile.sizeKB;
-        //         sri = jsFile.sri;
-        //         location = `"${folder_name}": "${folder_name}/${jsFile.file}",\n`;
-        //     }
-        // });
+        const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", folder_name, "amd_lib.json")).toString());
+        (type == "dev" ? libJSON.devFiles : libJSON.files).forEach((jsFile) => {
+            if (jsFile.file.indexOf("index") !== -1 && jsFile.file.indexOf(".js") !== -1) {
+                file_size += jsFile.sizeKB;
+                sri = jsFile.sri;
+                location = `"${folder_name}": "libs/${folder_name}/${jsFile.file}",\n`;
+            }
+        });
         return [file_size, sri, location];
     };
 
     const handle_js_file = (root_dir, subdirs, file) => {
         let file_size = fs.readFileSync(path.join(root_dir, ...subdirs, file)).toString().length / 1000;
         let sri = get_file_hash(path.join("..", ...subdirs, file));
-        return [file_size, sri, "./" + path.join(...subdirs, file.replace('.js', ''))];
+        return [file_size, sri, path.join(...subdirs, file.replace('.js', ''))];
     };
 
     let new_pack_file = `
@@ -104,7 +104,7 @@ if (process.argv[2] == "pack") {
                 const [file_size, sri, location] = handle_library_file(path.join(...other_dirs));
                 sizes += file_size;
                 hashes[path.join(...other_dirs)] = sri;
-                new_pack_file += "libs/" + location.replace(".js", "");
+                new_pack_file += location.replace(".js", "");
             }
         }
 
@@ -182,8 +182,9 @@ if (process.argv[2] == "pack") {
         }
     
     } else {
+
         child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
-        fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
+        //fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
 
         if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
             request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
@@ -397,10 +398,10 @@ if (process.argv[2] == "build") {
             "license": "${package_json.license}",
             "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
             "files": [
-                {"file": "index.min.js", "sri": "${get_file_hash(`${package}/index.min.js`)}", "sizeKB": ${sizeProd / 1000}}
+                {"file": "index.min.js", "sri": "${get_file_hash(`${module_name || package}/index.min.js`)}", "sizeKB": ${sizeProd / 1000}}
             ],
             "devFiles": [
-                {"file": "index.js", "sri": "${get_file_hash(`${package}/index.js`)}", "sizeKB": ${sizeDev / 1000}}
+                {"file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}}
             ]
         }
         `.trim());
