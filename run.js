@@ -183,7 +183,7 @@ if (process.argv[2] == "pack") {
     console.log("");
 
     let finished = `<script async integrity="${shasumRequire}" crossorigin="anonymous" src="libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
-    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack${type == "prod" ? ".min" : ""}.js"></script>`;
+    finished += `<script async integrity="${shasum}" crossorigin="anonymous" src="libs/pack${type == "prod" ? ".min" : ""}.js"></script>\n`;
     
     if (write_html && fs.existsSync(write_html)) {
         let html_file = fs.readFileSync(write_html).toString();
