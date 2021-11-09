@@ -422,7 +422,7 @@ if (process.argv[2] == "build") {
             "files": [
                 {"type": "prodjs", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "sizeKB": ${sizeProd / 1000}},
                 {"type": "devjs", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}},
-                ${style_files.map(style => `{"type": "style", "file": "${module_name || package}/${style.file}", "sri": "${style.sri}", "sizeKB": ${style.size}}`).join(",\n")}
+                ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "sizeKB": ${style.size}}`).join(",\n")}
             ]
         }
         `.trim());
