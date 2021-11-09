@@ -14,6 +14,8 @@ const project_cwd = Buffer.from(process.argv[process.argv.length - 3].split("::"
 
 const bundle_deps = JSON.parse(Buffer.from(process.argv[process.argv.length - 4].split("::").pop(), 'base64').toString('ascii')).map(r => new RegExp(r));
 
+const index_file = Buffer.from(process.argv[process.argv.length - 5].split("::").pop(), 'base64').toString('ascii').trim();
+
 if (production) {
     console.log("Production Build:");
 } else {
@@ -26,7 +28,7 @@ const new_package = String(module_name);
 
 module.exports = {
     mode: production ? "production" : "development",
-    entry: path.join(project_cwd, `/node_modules/${module_name}/${package_file.main || "index.js"}`),
+    entry: path.join(project_cwd, `/node_modules/${module_name}/${index_file || package_file.main || "index.js"}`),
     output: {
         library: new_package,
         libraryTarget: 'amd',

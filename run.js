@@ -184,7 +184,23 @@ if (process.argv[2] == "build") {
 
     const package = process.argv[3];
 
-    const bundle_deps = (process.argv[4] ? process.argv[4].split("=").pop().split(",") : []);
+    const bundle_deps = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("bundle=") !== -1) {
+                return process.argv[i].split("=").pop().split(",");
+            }
+        }
+        return [];
+    })();
+
+    const index_file = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("index=") !== -1) {
+                return process.argv[i].split("=").pop();
+            }
+        }
+        return "";
+    })();
 
     const package_path = package.split("/").filter(f => f && f.length);
 
@@ -236,7 +252,7 @@ if (process.argv[2] == "build") {
         let entry = path.join(__cwd, `/node_modules/${package}/${package_json.main || "index.js"}`);
 
         let has_gen_entry = false;
-        if (fs.existsSync(entry) == false) {
+        if (fs.existsSync(entry) == false && index_file == "") {
             has_gen_entry = true;
             entry = path.join(__cwd, `/node_modules/${package}/index.js`);
             let includes = [];
@@ -271,7 +287,7 @@ if (process.argv[2] == "build") {
 
         // minified build
         await new Promise((res, rej) => {
-            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
+            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
                 cwd: __dirname,
                 detached: true,
                 stdio: "inherit"
@@ -282,7 +298,7 @@ if (process.argv[2] == "build") {
 
         // non minified build
         await new Promise((res, rej) => {
-            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
+            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
                 cwd: __dirname,
                 detached: true,
                 stdio: "inherit"
