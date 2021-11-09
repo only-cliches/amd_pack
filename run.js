@@ -45,6 +45,12 @@ if (process.argv[2] == "pack") {
         return [file_size, sri, location];
     };
 
+    const handle_js_file = (root_dir, subdirs, file) => {
+        let file_size = fs.readFileSync(path.join(root_dir, ...subdirs, file)).toString().length / 1000;
+        let sri = get_file_hash(path.join("..", ...subdirs, file));
+        return [file_size, sri, "." + path.join(...subdirs, file.replace('.js', ''))];
+    };
+
     let new_pack_file = `
 (function() {
     var __counter = 0;
@@ -77,7 +83,6 @@ if (process.argv[2] == "pack") {
 
     function _amd_packer_config() {
         requirejs.config({
-            baseUrl: 'libs',
             deps: ['app'],
             paths: {
 `;
@@ -99,42 +104,30 @@ if (process.argv[2] == "pack") {
                 const [file_size, sri, location] = handle_library_file(path.join(...other_dirs));
                 sizes += file_size;
                 hashes[path.join(...other_dirs)] = sri;
-                new_pack_file += location.replace(".js", "");
+                new_pack_file += "libs/" + location.replace(".js", "");
             }
         }
 
     };
     scan_libs(path.join(__cwd, "libs"), []);
-    
-    // let files = fs.readdirSync("libs");
 
-    // for (let i in files) {
-    //     const file = files[i];
-    //     const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file))).isDirectory();
-    //     const first_char = Array.from(file)[0];
-
-    //     if (isDir && first_char != "@") {
-    //         const [file_size, sri, location] = handle_library_file(file);
-    //         sizes += file_size;
-    //         hashes[file] = sri;
-    //         new_pack_file += location.replace(".js", "");
-    //     }
-
-    //     if (isDir && first_char == "@") {
-    //         const nested_files = fs.readdirSync(path.join(__cwd, "libs", file));
-    //         for (let k in nested_files) {
-    //             const nfile = nested_files[k];
-    //             const isDir = fs.fstatSync(fs.openSync(path.join(__cwd, "libs", file, nfile))).isDirectory();
-
-    //             if (isDir) {
-    //                 const [file_size, sri, location] = handle_library_file(path.join(file, nfile));
-    //                 sizes += file_size;
-    //                 hashes[path.join(file, nfile)] = sri;
-    //                 new_pack_file += location.replace(".js", "");
-    //             }
-    //         }
-    //     }
-    // }
+    // load app files
+    const scan_files = (root_dir, other_dirs) => {
+        let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
+        for (let i in files) {
+            const file = files[i];
+            const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
+            if (isDir) {
+                scan_files(root_dir, [...other_dirs, file]);
+            } else if (file.indexOf(".js") !== -1) {
+                const [file_size, sri, location] = handle_js_file(root_dir, other_dirs, file);
+                sizes += file_size;
+                hashes[location] = sri;
+            }
+        }
+    };
+    scan_files(path.join(__cwd, "pages"));
+    scan_files(path.join(__cwd, "components"));
 
     // load app.js
     let files = fs.readdirSync(__cwd);
@@ -148,7 +141,7 @@ if (process.argv[2] == "pack") {
             if (type == "prod") {
                 hashes["app"] =  sri;
             }
-            new_pack_file += `"app": "../${app_file.replace(".js", "")}"`;
+            new_pack_file += `"app": "./${app_file.replace(".js", "")}"`;
             sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
         }
     }
