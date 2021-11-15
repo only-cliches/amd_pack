@@ -237,7 +237,14 @@ if (process.argv[2] == "pack") {
                 callback: function() {
                     var __loading = document.getElementById("amd_loader");
                     if (__loading) {
-                        __loading.style.display = "none";
+                        var hide = __loading.getAttribute("data-hide");
+                        if (hide) {
+                            var style = hide.split(":");
+                            __loading.style[style[0]] = style[1];
+                        } else {
+                            __loading.style.display = "none";
+                        }
+                        
                     }
                 },
                 paths: ${JSON.stringify(paths, null, 4)},
