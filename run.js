@@ -103,7 +103,6 @@ if (process.argv[2] == "pack") {
                     scan_files(root_dir, [...other_dirs, file]);
                 } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") == -1) { // not a minified file
                     let hash_key = path.join(...other_dirs, file.replace('.js', ''));
-                    console.log(`Bundling application file ${path.join(...other_dirs, file)}`);
 
                     if (type == "prod") {
 
@@ -162,7 +161,7 @@ if (process.argv[2] == "pack") {
     for (let i in files) {
         if (app_file == files[i]) {
             found_app = true;
-            console.log("Bundling app.js");
+
             if (type == "prod") {
                 const app_hash = md5(fs.readFileSync(path.join(__cwd, "app.js")).toString());
 
@@ -222,28 +221,25 @@ if (process.argv[2] == "pack") {
                 console.log("Packer failed to load!")
             };
 
-            
-
-            if (__counter > 15 && typeof __loading == undefined) { // 1/4 of a second
-                __loading = document.getElementById("amd_loader");
-                if (__loading) {
-                    __loading.style.display = "block";
-                }
-            }
-
             if (typeof require !== undefined && typeof requirejs === 'function') {
                 clearInterval(__require);
                 _amd_packer_config();
-                if (__loading) {
-                    __loading.style.display = "none";
-                }
             }
+
+            __counter += 1;
+
         }, 16);
 
         function _amd_packer_config() {
             requirejs.config({
                 baseUrl: "${cdn_url}",
                 deps: ['app'],
+                callback: function() {
+                    var __loading = document.getElementById("amd_loader");
+                    if (__loading) {
+                        __loading.style.display = "none";
+                    }
+                },
                 paths: ${JSON.stringify(paths, null, 4)},
                 onNodeCreated: function(node, config, module, path) {
                     var sri = sri_obj[module];
@@ -274,7 +270,7 @@ if (process.argv[2] == "pack") {
         var style_obj = ${JSON.stringify(removeEmptyKeys(styles), null, 4)};
     })();`.trim();
 
-    console.log("Writing package file");
+    
 
     fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
 
@@ -307,6 +303,8 @@ if (process.argv[2] == "pack") {
         pack_file = `libs/pack.min.${file_hash}.js`;
     }
 
+    console.log(`Writing package file ${pack_file}`);
+    console.log("");
 
     console.log(`Completed in ${Math.round((Date.now() - start) / 100) / 10} seconds!`);
     console.log(`Total application, library & styles size: ${Math.round(sizes * 10) / 10}kb`);
