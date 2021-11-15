@@ -218,7 +218,7 @@ if (process.argv[2] == "pack") {
                 console.log("Packer failed to load!")
             };
 
-            if (require) {
+            if (typeof require !== undefined && typeof requirejs === 'function') {
                 clearInterval(__require);
                 _amd_packer_config();
             }
