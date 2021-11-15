@@ -111,6 +111,7 @@ if (process.argv[2] == "pack") {
                         const new_name = file.replace(".js", `.min.${file_hash}.js`);
 
                         if (!fs.existsSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)))) {
+                            console.log(`Minifying: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
                             child.execSync(`./node_modules/.bin/minify ${path.join(root_dir, ...other_dirs, file)} > ${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}`, {cwd: __dirname});
                             const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
                             hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
@@ -118,6 +119,7 @@ if (process.argv[2] == "pack") {
                             fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
                             paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
                         } else {
+                            console.log(`Cached: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
                             hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)));
                             paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
                             sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`))).length / 1000;
@@ -165,7 +167,7 @@ if (process.argv[2] == "pack") {
                 const app_hash = md5(fs.readFileSync(path.join(__cwd, "app.js")).toString());
 
                 if (!fs.existsSync(path.join(__cwd, `app.min.${app_hash}.js`))) {
-                    console.log("NOT CACHED");
+                    console.log(`Minifying: app.js -> app.min.${app_hash}.js`);
                     child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "app.js")} > ${path.join(__cwd, "app.min.js")}`, {cwd: __dirname});
                     const sri = get_file_hash(path.join("..", "app.min.js"));
                     hashes["app"] =  sri;
@@ -174,6 +176,7 @@ if (process.argv[2] == "pack") {
                     paths["app"] = `./app.min.${app_hash}`;
                     fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${app_hash}.js`));
                 } else {
+                    console.log(`Cached: app.js -> app.min.${app_hash}.js`);
                     const sri = get_file_hash(path.join("..", `app.min.${app_hash}.js`));
                     hashes["app"] =  sri;
                     sizes += fs.readFileSync(path.join(__cwd, `app.min.${app_hash}.js`)).toString().length / 1000;
@@ -197,6 +200,7 @@ if (process.argv[2] == "pack") {
     let new_pack_file = `
     (function() {
         var __counter = 0;
+        var __loading;
         var __require = setInterval(function() {`;
         
         if (type == "dev") {
@@ -218,9 +222,21 @@ if (process.argv[2] == "pack") {
                 console.log("Packer failed to load!")
             };
 
+            
+
+            if (__counter > 15 && typeof __loading == undefined) { // 1/4 of a second
+                __loading = document.getElementById("amd_loader");
+                if (__loading) {
+                    __loading.style.display = "block";
+                }
+            }
+
             if (typeof require !== undefined && typeof requirejs === 'function') {
                 clearInterval(__require);
                 _amd_packer_config();
+                if (__loading) {
+                    __loading.style.display = "none";
+                }
             }
         }, 16);
 
