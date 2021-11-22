@@ -75,13 +75,13 @@ if (process.argv[2] == "pack") {
                     if ((type == "dev" && file.type == "script_dev") || (type == "prod" && file.type == "script_prod")) {
                         sizes += file.sizeKB;
                         hashes[key] = file.sri;
-                        paths[key] = `libs/${key}/${file.file}`.replace(".js", "")
+                        paths[key] = `/libs/${key}/${file.file}`.replace(".js", "")
                     }
                     // add styles
                     if (file.type == "style") {
                         styles[key].push({
                             sri: file.sri,
-                            file: `libs/${key}/${file.file}`
+                            file: `/libs/${key}/${file.file}`
                         });
                     }
                 })
@@ -116,11 +116,11 @@ if (process.argv[2] == "pack") {
                             hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
                             sizes += contents.length / 1000;
                             fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
-                            paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
+                            paths[hash_key] = "/" + path.join(...other_dirs, new_name.replace(".js", ""));
                         } else {
                             console.log(`Cached: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
                             hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)));
-                            paths[hash_key] = path.join(...other_dirs, new_name.replace(".js", ""));
+                            paths[hash_key] = "/" + path.join(...other_dirs, new_name.replace(".js", ""));
                             sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`))).length / 1000;
                         }
 
@@ -174,19 +174,19 @@ if (process.argv[2] == "pack") {
                     hashes["app"] =  sri;
                     const contents = fs.readFileSync(path.join(__cwd, "app.min.js")).toString();
                     sizes += contents.length / 1000;
-                    paths["app"] = `./app.min.${app_hash}`;
+                    paths["app"] = `/app.min.${app_hash}`;
                     fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${app_hash}.js`));
                 } else {
                     console.log(`Cached: app.js -> app.min.${app_hash}.js`);
                     const sri = get_file_hash(path.join("..", `app.min.${app_hash}.js`));
                     hashes["app"] =  sri;
                     sizes += fs.readFileSync(path.join(__cwd, `app.min.${app_hash}.js`)).toString().length / 1000;
-                    paths["app"] = `./app.min.${app_hash}`;
+                    paths["app"] = `/app.min.${app_hash}`;
                 }
 
 
             } else {
-                paths["app"] = `./${app_file.replace(".js", "")}`;
+                paths["app"] = `/${app_file.replace(".js", "")}`;
                 sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
             }
             
