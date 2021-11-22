@@ -532,7 +532,7 @@ if (process.argv[2] == "build") {
         {
             "api": 1,
             "name": "${module_name || package}",
-            "description": "${package_json.description}",
+            "description": "${package_json.description.replace(/\"/gmi, "'")}",
             "author": ${package_json.author == undefined ? '""' : JSON.stringify(package_json.author)},
             "version": "${version.slice(0, version.length - 1)}",
             "repo": ${JSON.stringify(package_json.repository)},
