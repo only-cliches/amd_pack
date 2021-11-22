@@ -137,7 +137,7 @@ if (process.argv[2] == "pack") {
     };
     scan_files(__cwd, ["pages"]);
     scan_files(__cwd, ["components"]);
-    scan_files(__cwd, ["utilities"]);
+    scan_files(__cwd, ["utilites"]);
     scan_files(__cwd, ["store"]);
 
     const removeEmptyKeys = (obj) => {
