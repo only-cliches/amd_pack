@@ -234,7 +234,7 @@ if (process.argv[2] == "pack") {
 
         function _amd_packer_config() {
             requirejs.config({
-                baseUrl: "${cdn_url}",
+                baseUrl: "${cdn_url || "/"}",
                 deps: ['app'],
                 callback: function() {
                     var __loading = document.getElementById("amd_loader");
