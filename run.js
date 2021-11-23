@@ -535,7 +535,7 @@ if (process.argv[2] == "build") {
             "description": "${package_json.description.replace(/\"/gmi, "'")}",
             "author": ${package_json.author == undefined ? '""' : JSON.stringify(package_json.author)},
             "version": "${version.slice(0, version.length - 1)}",
-            "repo": ${JSON.stringify(package_json.repository) || ""},
+            "repo": ${JSON.stringify(package_json.repository) || "''"},
             "homepage": "${package_json.homepage}",
             "keywords": ${JSON.stringify(package_json.keywords || [])},
             "license": "${package_json.license}",
