@@ -458,12 +458,13 @@ if (process.argv[2] == "build") {
     })();
 
     const styles = (() => {
+        let result = [];
         for (let i in process.argv) {
-            if (process.argv[i].indexOf("styles=") !== -1) {
-                return process.argv[i].split("=").pop().split(",");
+            if (process.argv[i].indexOf("style=") !== -1) {
+                result.push(process.argv[i].split("=").pop());
             }
         }
-        return [];
+        return result;
     })();
 
     const package_path = package.split("/").filter(f => f && f.length);
