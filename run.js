@@ -457,10 +457,20 @@ if (process.argv[2] == "build") {
         return "";
     })();
 
-    const styles = (() => {
+    const prod_styles = (() => {
         let result = [];
         for (let i in process.argv) {
-            if (process.argv[i].indexOf("style=") !== -1) {
+            if (process.argv[i].indexOf("prod_style=") !== -1) {
+                result.push(process.argv[i].split("=").pop());
+            }
+        }
+        return result;
+    })();
+
+    const dev_styles = (() => {
+        let result = [];
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("dev_style=") !== -1) {
                 result.push(process.argv[i].split("=").pop());
             }
         }
@@ -598,10 +608,10 @@ if (process.argv[2] == "build") {
         const prodFileName = `index.${prodHash}.min.js`;
         fs.renameSync(path.join(__cwd, "libs", module_name || package, "index.min.js"), path.join(__cwd, "libs", module_name || package, prodFileName));
 
-        let style_files = [];
+        let prod_style_files = [];
         // copy styles
-        for (let k in styles) {
-            const file_name = styles[k];
+        for (let k in prod_styles) {
+            const file_name = prod_styles[k];
             if (fs.existsSync(path.join(__cwd, "node_modules", package, file_name))) {
                 const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
 
@@ -609,7 +619,22 @@ if (process.argv[2] == "build") {
 
                 const gzipped = await (await gzip(file_contents)).byteLength;
 
-                style_files.push({ size: file_contents.length, sizeGzip: gzipped, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join(module_name || package, file_name.split(path.sep).pop())) });
+                prod_style_files.push({ size: file_contents.length, sizeGzip: gzipped, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join(module_name || package, file_name.split(path.sep).pop())) });
+            }
+        }
+
+        let dev_style_files = [];
+        // copy styles
+        for (let k in dev_styles) {
+            const file_name = dev_styles[k];
+            if (fs.existsSync(path.join(__cwd, "node_modules", package, file_name))) {
+                const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
+
+                fs.copyFileSync(path.join(__cwd, "node_modules", package, file_name), path.join(__cwd, "libs", module_name || package, file_name.split(path.sep).pop()));
+
+                const gzipped = await (await gzip(file_contents)).byteLength;
+
+                dev_style_files.push({ size: file_contents.length, sizeGzip: gzipped, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join(module_name || package, file_name.split(path.sep).pop())) });
             }
         }
 
@@ -626,12 +651,12 @@ if (process.argv[2] == "build") {
             "license": "${package_json.license}",
             "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
             "prod_files": [
-                {"type": "script", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "size": ${sizeProd}, "gzipSize": ${sizeProdGzip}}${style_files.length ? "," : ""}
-                ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "gzipSize": ${style.sizeGzip}, "size": ${style.size}}`).join(",\n")}
+                {"type": "script", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "size": ${sizeProd}, "gzipSize": ${sizeProdGzip}}${prod_style_files.length ? "," : ""}
+                ${prod_style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "gzipSize": ${style.sizeGzip}, "size": ${style.size}}`).join(",\n")}
             ],
             "dev_files": [
-                {"type": "script", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "size": ${sizeDev}, "gzipSize": ${sizeDevGzip}}${style_files.length ? "," : ""}
-                ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "gzipSize": ${style.sizeGzip}, "size": ${style.size}}`).join(",\n")}
+                {"type": "script", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "size": ${sizeDev}, "gzipSize": ${sizeDevGzip}}${dev_style_files.length ? "," : ""}
+                ${dev_style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "gzipSize": ${style.sizeGzip}, "size": ${style.size}}`).join(",\n")}
             ]
         }
         `.trim());
