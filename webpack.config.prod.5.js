@@ -12,7 +12,7 @@ const module_name = process.argv[process.argv.length - 1].split("=").pop();
 
 const project_cwd = Buffer.from(process.argv[process.argv.length - 3].split("::").pop(), 'base64').toString('ascii');
 
-const bundle_deps = JSON.parse(Buffer.from(process.argv[process.argv.length - 4].split("::").pop(), 'base64').toString('ascii')).map(r => new RegExp(r));
+const local_modules = Buffer.from(process.argv[process.argv.length - 4].split("::").pop(), 'base64').toString('ascii').trim();
 
 const index_file = Buffer.from(process.argv[process.argv.length - 5].split("::").pop(), 'base64').toString('ascii').trim();
 
@@ -27,6 +27,8 @@ if (production) {
 const package_file = JSON.parse(fs.readFileSync(path.join(project_cwd, `/node_modules/${module_name}/package.json`)).toString());
 
 const new_package = String(module_name);
+
+let dependecy_count = 0;
 
 module.exports = {
     mode: production ? "production" : "development",
@@ -44,6 +46,8 @@ module.exports = {
     },
     externals: [
         function({ context, request }, callback) {
+
+            dependecy_count += 1;
 
             const paths = ["../", "./"].map(p => request.indexOf(p));
 
@@ -63,36 +67,63 @@ module.exports = {
                 
                 const first_char = Array.from(request)[0];
                 // const num_slahes = Array.from(request).filter(f => f == "/").length;
-
                 if (first_char == "/" || first_char == ".") {
                     return false;
                 }
+                return true;
             };
 
-            if (is_remote_dependency() && bundle_deps.filter(r => r.test(request)).length == 0) {
-            
+            const request_package = (() => {
+                if (request.indexOf("@") !== -1) {
+                    return request.split(/\//gmi).filter((o, i) => i < 2).join("/");
+                }
+                return request.split(/\//gmi).filter((o, i) => i < 1).join("/");
+            })();
 
-                if (!depdency[request]) {
+            const request_root = (() => {
+                const root_module = (() => {
+                    if (module_name.indexOf("@") !== -1) {
+                        return module_name.split(/\//gmi).filter((o, i) => i < 2).join("/");
+                    }
+                    return module_name.split(/\//gmi).filter((o, i) => i < 1).join("/");
+                })();
+                const package_loc = context.indexOf(root_module);
+                if (package_loc == -1) {
+                    return false;
+                } else {
+                    return context.slice(package_loc).replace(local_modules, "");
+                }
+            })();
+
+
+            if (is_remote_dependency() == false && dependecy_count > 1 && local_modules.length) {
+                return callback(null, 'amd ' + path.join(request_root, request.replace(/\.\w+$/gmi, "")));
+            }
+
+            if (is_remote_dependency()) {
+                if (!depdency[request_package]) {
                     try {
-                        child.execSync(`npm install ${request}`, {cwd: project_cwd});
+                        child.execSync(`npm install ${request_package}`, {cwd: project_cwd});
                     } catch (e) { }
 
                     try {
-                        const version = package_file.dependencies[request];
-                        depdency[request] = version;
+                        const version = package_file.dependencies[request_package];
+                        depdency[request_package] = version;
                         fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
                     } catch (e) {
    
                         
-                        const package = JSON.parse(fs.readFileSync(path.join(project_cwd, "node_modules", request, "package.json")));
+                        const package = JSON.parse(fs.readFileSync(path.join(project_cwd, "node_modules", request_package, "package.json")));
                         const version = package.version;    
-                        depdency[request] = version;
+                        depdency[request_package] = version;
                         fs.writeFileSync(path.join(project_cwd, "__deps.json"), JSON.stringify(depdency, null, 4));
                     }
 
                 }
 
-                return callback(null, 'amd ' + request);
+                const adjusted_request = request.replace("@babel/runtime/helpers/esm/", "@babel/runtime/helpers/");
+
+                return callback(null, 'amd ' + adjusted_request);
             }
 
             // Continue without externalizing the import

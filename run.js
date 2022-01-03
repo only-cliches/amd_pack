@@ -4,206 +4,259 @@ const path = require("path");
 const fs = require("fs");
 const child = require("child_process");
 const request = require("request");
-const md5 = require("md5");
-
+const XXHash = require('xxhash');
+const filesize = require("filesize");
+const { gzip, ungzip } = require('node-gzip');
 
 const __cwd = process.cwd();
 
 
 const get_file_hash = (file_path) => {
-    const shaSum = child.execSync(`shasum -b -a 512 libs/${file_path} | awk '{ print $1 }' | xxd -r -p | base64`);
+    const shaSum = child.execSync(`shasum -b -a 512 'libs/${file_path}' | awk '{ print $1 }' | xxd -r -p | base64`);
     return "sha512-" + shaSum.slice(0, shaSum.length - 1).toString().replace(/(\r\n|\n|\r)/gm, "");
 }
 
+// for FILE in *.js; do echo -e "amd_pack build react-bootstrap name=react-bootstrap/$FILE index=esm/$FILE"; done
+if (process.argv[2] == "list") {
+
+    const package_name = process.argv[3];
+    const scan_dir = process.argv[4];
+
+    const scan = (dir) => {
+        const files = fs.readdirSync(dir);
+
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            if (fs.statSync(path.join(dir, f)).isDirectory()) {
+                scan(path.join(dir, f));
+            } else {
+                let file_name = path.join(dir, f);
+                if (f.indexOf(".js") !== -1 && f.indexOf(".flow") === -1) {
+                    file_name = file_name.slice(file_name.indexOf(package_name) + package_name.length + 1);
+                    const mod_name = package_name + "/" + file_name;
+                    console.log(`and_pack build ${package_name} name=${mod_name.replace(".js", "")} index=${file_name}`);
+                }
+
+            }
+        }
+    };
+
+    scan(path.join(__cwd, scan_dir));
+    return;
+}
 
 
 if (process.argv[2] == "pack") {
 
-    const type = process.argv[3] || "dev"; // dev or prod
+    (async () => {
 
-    let start = Date.now();
+        const type = process.argv[3] || "dev"; // dev or prod
 
-    if (type == "dev") {
-        console.log("BUNDLING FOR DEVELOPMENT");
-    } else {
-        console.log("BUNDLING FOR PRODUCTION");
-    }
+        let start = Date.now();
 
-    const write_html = (() => {
-        for (let i in process.argv) {
-            if (process.argv[i].indexOf("html=") !== -1) {
-                return process.argv[i].split("=").pop();
-            }
-        }
-        return "";
-    })();
-
-    const cdn_url = (() => {
-        for (let i in process.argv) {
-            if (process.argv[i].indexOf("cdn=") !== -1) {
-                return process.argv[i].split("=").pop();
-            }
-        }
-        return "";
-    })();
-
-    
-    let paths = {};
-
-    let hashes = {};
-    let sizes = 0;
-
-    let styles = {};
-
-
-    // load libs
-    const scan_libs = (root_dir, other_dirs) => {
-        let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
-        for (let i in files) {
-            const file = files[i];
-            const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
-            if (isDir) {
-                scan_libs(root_dir, [...other_dirs, file]);
-            } else if (file == "amd_lib.json") {
-
-                console.log(`Bundling library ${path.join("libs", ...other_dirs)}`);
-                const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", ...other_dirs, "amd_lib.json")).toString());
-                const key = path.join(...other_dirs);
-                styles[key] = [];
-                libJSON.files.forEach((file) => {
-                    // get js file from this library
-                    if ((type == "dev" && file.type == "script_dev") || (type == "prod" && file.type == "script_prod")) {
-                        sizes += file.sizeKB;
-                        hashes[key] = file.sri;
-                        paths[key] = `/libs/${key}/${file.file}`.replace(".js", "")
-                    }
-                    // add styles
-                    if (file.type == "style") {
-                        styles[key].push({
-                            sri: file.sri,
-                            file: `/libs/${key}/${file.file}`
-                        });
-                    }
-                })
-            }
+        if (type == "dev") {
+            console.log("BUNDLING FOR DEVELOPMENT");
+        } else {
+            console.log("BUNDLING FOR PRODUCTION");
         }
 
-    };
-    scan_libs(path.join(__cwd, "libs"), []);
+        const write_html = (() => {
+            for (let i in process.argv) {
+                if (process.argv[i].indexOf("html=") !== -1) {
+                    return process.argv[i].split("=").pop();
+                }
+            }
+            return "";
+        })();
 
-    // load app files
-    const scan_files = (root_dir, other_dirs) => {
-        try {
+        const cdn_url = (() => {
+            for (let i in process.argv) {
+                if (process.argv[i].indexOf("cdn=") !== -1) {
+                    return process.argv[i].split("=").pop();
+                }
+            }
+            return "";
+        })();
+
+
+        let paths = {};
+
+        let hashes = {};
+        let sizes = 0;
+        let gzip_size = 0;
+
+        let styles = {};
+
+
+        // load libs
+        const scan_libs = async (root_dir, other_dirs) => {
             let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
             for (let i in files) {
                 const file = files[i];
                 const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
-
                 if (isDir) {
-                    scan_files(root_dir, [...other_dirs, file]);
-                } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") == -1) { // not a minified file
-                    let hash_key = path.join(...other_dirs, file.replace('.js', ''));
-
-                    if (type == "prod") {
-
-                        const file_hash = md5(fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString());
-                        const new_name = file.replace(".js", `.min.${file_hash}.js`);
-
-                        if (!fs.existsSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)))) {
-                            console.log(`Minifying: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
-                            child.execSync(`./node_modules/.bin/minify ${path.join(root_dir, ...other_dirs, file)} > ${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}`, {cwd: __dirname});
-                            const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
-                            hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
-                            sizes += contents.length / 1000;
-                            fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
-                            paths[hash_key] = "/" + path.join(...other_dirs, new_name.replace(".js", ""));
+                    await scan_libs(root_dir, [...other_dirs, file]);
+                } else if (file == "amd_lib.json") {
+                    console.log(`Bundling library ${path.join("libs", ...other_dirs)}`);
+                    const libJSON = JSON.parse(fs.readFileSync(path.join(__cwd, "libs", ...other_dirs, "amd_lib.json")).toString());
+                    const key = path.join(...other_dirs);
+                    styles[key] = [];
+                    const use_files = (() => {
+                        if (type == 'prod') {
+                            return libJSON.prod_files;
                         } else {
-                            console.log(`Cached: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
-                            hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)));
-                            paths[hash_key] = "/" + path.join(...other_dirs, new_name.replace(".js", ""));
-                            sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`))).length / 1000;
+                            return libJSON.dev_files;
                         }
-
-
-                    } else {
-                        sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString().length / 1000;
-                        hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file));
+                    })();
+                    for (let j = 0; j < use_files.length; j++) {
+                        const file = use_files[j];
+                        // console.log(file);
+                        // get js file from this library
+                        if (file.type == "script") {
+                            sizes += file.size;
+                            gzip_size += file.gzipSize || 0;
+                            hashes[key] = file.sri;
+                            paths[key] = `/libs/${key}/${file.file}`.replace(".js", "")
+                        }
+                        // add styles
+                        if (file.type == "style") {
+                            sizes += file.size;
+                            gzip_size += file.gzipSize || 0;
+                            styles[key].push({
+                                sri: file.sri,
+                                file: `/libs/${key}/${file.file}`
+                            });
+                        }
                     }
                 }
             }
-        } catch (e) {
-           
-        }
-    };
-    scan_files(__cwd, ["pages"]);
-    scan_files(__cwd, ["components"]);
-    scan_files(__cwd, ["utilites"]);
-    scan_files(__cwd, ["store"]);
 
-    const removeEmptyKeys = (obj) => {
-        if (Object.keys(obj).length) {
-            let new_obj = {};
-            Object.keys(obj).forEach((key) => {
-                if (obj[key] && obj[key].length) {
-                    new_obj[key] = obj[key];
+        };
+        await scan_libs(path.join(__cwd, "libs"), []);
+
+        // load app files
+        const scan_files = async (root_dir, other_dirs) => {
+            try {
+                let files = fs.readdirSync(path.join(root_dir, ...other_dirs));
+                for (let i in files) {
+                    const file = files[i];
+                    const isDir = fs.fstatSync(fs.openSync(path.join(root_dir, ...other_dirs, file))).isDirectory();
+
+                    if (isDir) {
+                        await scan_files(root_dir, [...other_dirs, file]);
+                    } else if (file.indexOf(".js") !== -1 && file.indexOf(".min.") == -1 && file.indexOf(".map") === -1) { // not a minified file
+                        let hash_key = path.join(...other_dirs, file.replace('.js', ''));
+
+                        if (type == "prod") {
+
+                            const app_file = fs.readFileSync(path.join(root_dir, ...other_dirs, file));
+                            const hasher = new XXHash(0xCAFEBABE);
+                            hasher.update(app_file);
+                            const file_hash = hasher.digest().toString(36);
+                            const new_name = file.replace(".js", `.min.${file_hash}.js`);
+
+                            if (!fs.existsSync(path.join(root_dir, ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)))) {
+                                console.log(`Minifying: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
+                                child.execSync(`./node_modules/.bin/minify '${path.join(root_dir, ...other_dirs, file)}' > '${path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))}'`, { cwd: __dirname });
+                                const contents = fs.readFileSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js"))).toString();
+                                hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", ".min.js")));
+                                fs.renameSync(path.join(root_dir, ...other_dirs, file.replace(".js", ".min.js")), path.join(root_dir, ...other_dirs, new_name));
+                                paths[hash_key] = "/" + path.join(...other_dirs, new_name.replace(".js", ""));
+                            } else {
+                                console.log(`Cached: ${path.join(...other_dirs, file)} -> ${path.join(...other_dirs, file.replace(".js", `.min.${file_hash}.js`))}`);
+                                hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file.replace(".js", `.min.${file_hash}.js`)));
+                                paths[hash_key] = "/" + path.join(...other_dirs, new_name.replace(".js", ""));
+                            }
+
+                            const file_data = fs.readFileSync(path.join(root_dir, ...other_dirs, new_name));
+                            sizes += file_data.length;
+                            gzip_size += await (await gzip(file_data)).byteLength || 0;
+
+                        } else {
+                            sizes += fs.readFileSync(path.join(root_dir, ...other_dirs, file)).toString().length;
+                            hashes[hash_key] = get_file_hash(path.join("..", ...other_dirs, file));
+                        }
+                    }
                 }
-            });
+            } catch (e) {
 
-            return new_obj;
-        }
-        return {};
-    };
-
-    // load app.js
-    let files = fs.readdirSync(__cwd);
-
-    const app_file = "app.js";
-    let found_app = false;
-
-    for (let i in files) {
-        if (app_file == files[i]) {
-            found_app = true;
-
-            if (type == "prod") {
-                const app_hash = md5(fs.readFileSync(path.join(__cwd, "app.js")).toString());
-
-                if (!fs.existsSync(path.join(__cwd, `app.min.${app_hash}.js`))) {
-                    console.log(`Minifying: app.js -> app.min.${app_hash}.js`);
-                    child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "app.js")} > ${path.join(__cwd, "app.min.js")}`, {cwd: __dirname});
-                    const sri = get_file_hash(path.join("..", "app.min.js"));
-                    hashes["app"] =  sri;
-                    const contents = fs.readFileSync(path.join(__cwd, "app.min.js")).toString();
-                    sizes += contents.length / 1000;
-                    paths["app"] = `/app.min.${app_hash}`;
-                    fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, `app.min.${app_hash}.js`));
-                } else {
-                    console.log(`Cached: app.js -> app.min.${app_hash}.js`);
-                    const sri = get_file_hash(path.join("..", `app.min.${app_hash}.js`));
-                    hashes["app"] =  sri;
-                    sizes += fs.readFileSync(path.join(__cwd, `app.min.${app_hash}.js`)).toString().length / 1000;
-                    paths["app"] = `/app.min.${app_hash}`;
-                }
-
-
-            } else {
-                paths["app"] = `/${app_file.replace(".js", "")}`;
-                sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length / 1000;
             }
-            
+        };
+
+        await scan_files(__cwd, ["pages"]);
+        await scan_files(__cwd, ["components"]);
+        await scan_files(__cwd, ["utilites"]);
+        await scan_files(__cwd, ["store"]);
+
+        const removeEmptyKeys = (obj) => {
+            if (Object.keys(obj).length) {
+                let new_obj = {};
+                Object.keys(obj).forEach((key) => {
+                    if (obj[key] && obj[key].length) {
+                        new_obj[key] = obj[key];
+                    }
+                });
+
+                return new_obj;
+            }
+            return {};
+        };
+
+        // load app.js
+        let files = fs.readdirSync(__cwd);
+
+        const app_file = "app.js";
+        let found_app = false;
+
+        for (let i in files) {
+            if (app_file == files[i]) {
+                found_app = true;
+
+                if (type == "prod") {
+
+                    let app_file = fs.readFileSync(path.join(__cwd, "app.js"));
+                    const hasher = new XXHash(0xCAFEBABE);
+                    hasher.update(app_file);
+                    const app_hash = hasher.digest().toString(36);
+                    const new_name = `app.min.${app_hash}.js`;
+
+                    if (!fs.existsSync(path.join(__cwd, new_name))) {
+                        console.log(`Minifying: app.js -> app.min.${app_hash}.js`);
+                        child.execSync(`./node_modules/.bin/minify '${path.join(__cwd, "app.js")}' > '${path.join(__cwd, "app.min.js")}'`, { cwd: __dirname });
+                        const sri = get_file_hash(path.join("..", "app.min.js"));
+                        hashes["app"] = sri;
+                        paths["app"] = `/app.min.${app_hash}`;
+                        fs.renameSync(path.join(__cwd, "app.min.js"), path.join(__cwd, new_name));
+                    } else {
+                        console.log(`Cached: app.js -> app.min.${app_hash}.js`);
+                        const sri = get_file_hash(path.join("..", new_name));
+                        hashes["app"] = sri;
+                        sizes += fs.readFileSync(path.join(__cwd, new_name)).toString().length;
+                        paths["app"] = `/app.min.${app_hash}`;
+                    }
+
+                    const contents = fs.readFileSync(path.join(__cwd, new_name));
+                    sizes += contents.length;
+                    gzip_size += await (await gzip(contents)).byteLength || 0;
+
+                } else {
+                    paths["app"] = `/${app_file.replace(".js", "")}`;
+                    sizes += fs.readFileSync(path.join(__cwd, app_file)).toString().length;
+                }
+            }
         }
-    }
 
-    if (found_app == false) {
-        console.error(`Unable to find ${app_file} in root!`);
-        process.exit();
-    }
+        if (found_app == false) {
+            console.error(`Unable to find ${app_file} in root!`);
+            process.exit();
+        }
 
-    let new_pack_file = `
+        let new_pack_file = `
     (function() {
         var __counter = 0;
         var __loading;
         var __require = setInterval(function() {`;
-        
+
         if (type == "dev") {
             new_pack_file += `
             if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
@@ -257,7 +310,7 @@ if (process.argv[2] == "pack") {
                         node.setAttribute('integrity', sri);
                         node.setAttribute('crossorigin', 'anonymous');
                     } else {
-                        ${type == "prod" ? `console.log("Security error, no integrity found for module:", module)` : ''};
+                        ${type == "prod" ? `console.error("Scurity error, no integrity found for script in module: ", module);` : ''};
                     }
 
                     if (style_obj[module] && style_obj[module].length) {
@@ -265,8 +318,14 @@ if (process.argv[2] == "pack") {
                             var elem = document.createElement("link");
                             elem.setAttribute("rel", "stylesheet");
                             elem.setAttribute("href", style.file);
-                            ${type == "prod" ? `elem.setAttribute("integrity", style.sri);` : ""}
-                            ${type == "prod" ? `elem.setAttribute("crossorigin", "anonymous");` : ""}
+                            ${type == "prod" ? `
+                            if (style.sri) {
+                                elem.setAttribute("integrity", style.sri);
+                                elem.setAttribute("crossorigin", "anonymous");
+                            } else {
+                                console.error("Security error, no integrity found for css in module: ", module, style.file);
+                            }
+                            ` : ""}
                             document.head.appendChild(elem);
                         });
                     }
@@ -279,86 +338,105 @@ if (process.argv[2] == "pack") {
         var style_obj = ${JSON.stringify(removeEmptyKeys(styles), null, 4)};
     })();`.trim();
 
-    
+        fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
 
-    fs.writeFileSync(path.join(__cwd, "libs", "pack.js"), new_pack_file.trim());
+        if (type == "dev") {
+            if (!fs.existsSync(path.join(__cwd, "libs", "require.js"))) {
+                request('https://requirejs.org/docs/release/2.3.6/comments/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.js")));
+                child.execSync("sleep 0.5");
+            }
 
-    if (type == "dev") {
-        if (!fs.existsSync(path.join(__cwd, "libs", "require.js"))) {
-            request('https://requirejs.org/docs/release/2.3.6/comments/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.js")));
-            child.execSync("sleep 0.5");
-        }
-    
-    } else {
-
-        child.execSync(`./node_modules/.bin/minify ${path.join(__cwd, "libs", "pack.js")} > ${path.join(__cwd, "libs", "pack.min.js")}`, {cwd: __dirname});
-        //fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
-
-        if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
-            request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
-            child.execSync("sleep 0.5");
-        }
-    
-    }
-
-    const shasum = get_file_hash(type == "dev" ? "pack.js" : "pack.min.js");
-    const shasumRequire = get_file_hash(type == "dev" ? "require.js" : "require.min.js");
-
-    let pack_file = "libs/pack.js";
-
-    if (type == "prod") {
-        const file_hash = md5(fs.readFileSync(path.join(__cwd, "libs", "pack.min.js")).toString());
-        fs.renameSync(path.join(__cwd, "libs", "pack.min.js"), path.join(__cwd, "libs", `pack.min.${file_hash}.js`));
-        pack_file = `libs/pack.min.${file_hash}.js`;
-    }
-
-    console.log(`Writing package file ${pack_file}`);
-    console.log("");
-
-    console.log(`Completed in ${Math.round((Date.now() - start) / 100) / 10} seconds!`);
-    console.log(`Total application, library & styles size: ${Math.round(sizes * 10) / 10}kb`);
-    console.log("");
-
-    let finished = `<script async ${type == "prod" ? `integrity="${shasumRequire}" crossorigin="anonymous"` : ""} src="${cdn_url}/libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
-    finished += `<script async ${type == "prod" ? `integrity="${shasum}" crossorigin="anonymous"` : ""} src="${cdn_url}/${pack_file}"></script>\n`;
-    
-    if (write_html && fs.existsSync(write_html)) {
-        let html_file = fs.readFileSync(write_html).toString();
-        const start_template = html_file.indexOf("<!-- LOADER -->");
-        const end_template = html_file.indexOf("<!-- /LOADER -->");
-        if (start_template !== -1 && end_template !== -1) {
-            let split_file = Array.from(html_file);
-            split_file.splice(start_template + 16, end_template - (start_template + 16), ...Array.from(finished));
-            fs.writeFileSync(write_html, split_file.join(""));
-            console.log(`Written to ${write_html}`);
         } else {
-            console.log("Unable to find index HTML file, please paste this into index.html:");
-            console.log("");
-            console.log(finished);     
+
+            child.execSync(`./node_modules/.bin/minify '${path.join(__cwd, "libs", "pack.js")}' > '${path.join(__cwd, "libs", "pack.min.js")}'`, { cwd: __dirname });
+            //fs.unlinkSync(path.join(__cwd, "libs", "pack.js"));
+
+            if (!fs.existsSync(path.join(__cwd, "libs", "require.min.js"))) {
+                request('https://requirejs.org/docs/release/2.3.6/minified/require.js').pipe(fs.createWriteStream(path.join(__cwd, "libs", "require.min.js")));
+                child.execSync("sleep 0.5");
+            }
+
         }
 
-    } else {
-        console.log("Paste this into index.html:");
+        const shasum = get_file_hash(type == "dev" ? "pack.js" : "pack.min.js");
+        const shasumRequire = get_file_hash(type == "dev" ? "require.js" : "require.min.js");
+
+        let pack_file = "libs/pack.js";
+
+        if (type == "prod") {
+
+            let pack_file_contents = fs.readFileSync(path.join(__cwd, "libs", "pack.min.js"));
+            const hasher = new XXHash(0xCAFEBABE);
+            hasher.update(pack_file_contents);
+            const file_hash = hasher.digest().toString(36);
+
+            sizes += pack_file_contents.length;
+
+            fs.renameSync(path.join(__cwd, "libs", "pack.min.js"), path.join(__cwd, "libs", `pack.min.${file_hash}.js`));
+            pack_file = `libs/pack.min.${file_hash}.js`;
+
+            gzip_size += await (await gzip(pack_file_contents)).byteLength;
+
+        } else {
+            let pack_file_contents = fs.readFileSync(path.join(__cwd, "libs", "pack.js"));
+            sizes += pack_file_contents.length;
+        }
+
+        console.log(`Writing package file ${pack_file}`);
         console.log("");
-        console.log(finished);      
-    }
+
+        console.log(`Completed in ${Math.round((Date.now() - start) / 100) / 10} seconds!`);
+        console.log(`Total application, library & styles size: ${filesize(sizes)}`);
+        if (type == "prod") {
+            console.log(`gzipped: ${filesize(gzip_size)}`);
+        }
+        console.log("");
+
+        let finished = `<script async ${type == "prod" ? `integrity="${shasumRequire}" crossorigin="anonymous"` : ""} src="${cdn_url}/libs/require${type == "prod" ? ".min" : ""}.js"></script>\n`;
+        finished += `<script async ${type == "prod" ? `integrity="${shasum}" crossorigin="anonymous"` : ""} src="${cdn_url}/${pack_file}"></script>\n`;
+
+        if (write_html && fs.existsSync(write_html)) {
+            let html_file = fs.readFileSync(write_html).toString();
+            const start_template = html_file.indexOf("<!-- LOADER -->");
+            const end_template = html_file.indexOf("<!-- /LOADER -->");
+            if (start_template !== -1 && end_template !== -1) {
+                let split_file = Array.from(html_file);
+                split_file.splice(start_template + 16, end_template - (start_template + 16), ...Array.from(finished));
+                fs.writeFileSync(write_html, split_file.join(""));
+                console.log(`Written to ${write_html}`);
+            } else {
+                console.log("Unable to find index HTML file, please paste this into index.html:");
+                console.log("");
+                console.log(finished);
+            }
+
+        } else {
+            console.log("Paste this into index.html:");
+            console.log("");
+            console.log(finished);
+        }
 
 
-    return;
-
+        return;
+    })()
 }
+
 
 if (process.argv[2] == "build") {
 
     const package = process.argv[3];
 
-    const bundle_deps = (() => {
+    const local_modules = (() => {
         for (let i in process.argv) {
-            if (process.argv[i].indexOf("bundle=") !== -1) {
-                return process.argv[i].split("=").pop().split(",");
+            if (process.argv[i].indexOf("local_modules=") !== -1) {
+                try {
+                    return process.argv[i].split("=").pop().trim();
+                } catch (e) {
+                    return "";
+                }
             }
         }
-        return [];
+        return "";
     })();
 
     const index_file = (() => {
@@ -413,8 +491,8 @@ if (process.argv[2] == "build") {
                     copy.concat(copy_types(scan_dir, [...subdirs, files[key]], extension, true));
                 }
             }
-        } catch(e) {
-            
+        } catch (e) {
+
         }
 
         return copy
@@ -476,7 +554,7 @@ if (process.argv[2] == "build") {
 
         // minified build
         await new Promise((res, rej) => {
-            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `name::${Buffer.from(module_name).toString('base64')}`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
+            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `name::${Buffer.from(module_name).toString('base64')}`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(local_modules).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=prod`, `mod=${package}`], {
                 cwd: __dirname,
                 detached: true,
                 stdio: "inherit"
@@ -487,7 +565,7 @@ if (process.argv[2] == "build") {
 
         // non minified build
         await new Promise((res, rej) => {
-            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `name::${Buffer.from(module_name).toString('base64')}`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(JSON.stringify(bundle_deps)).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
+            const prod = child.spawn(`./node_modules/.bin/webpack-cli`, [`--progress`, `--config`, `webpack.config.prod.5.js`, `--env`, `name::${Buffer.from(module_name).toString('base64')}`, `index::${Buffer.from(index_file).toString('base64')}`, `bundle::${Buffer.from(local_modules).toString('base64')}`, `cwd::${Buffer.from(__cwd).toString('base64')}`, `type=dev`, `mod=${package}`], {
                 cwd: __dirname,
                 detached: true,
                 stdio: "inherit"
@@ -504,10 +582,17 @@ if (process.argv[2] == "build") {
 
         }
 
-        const prodJSFile = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.min.js")).toString();
-        const prodHash = md5(prodJSFile);
+        const prodJSFile = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.min.js"));
+        const hasher = new XXHash(0xCAFEBABE);
+        hasher.update(prodJSFile);
+        const prodHash = hasher.digest().toString(36);
+
         const sizeProd = prodJSFile.length;
-        const sizeDev = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.js")).toString().length;
+        const sizeProdGzip = await (await gzip(prodJSFile)).byteLength;
+        const prodFile = fs.readFileSync(path.join(__cwd, "libs", module_name || package, "index.js"));
+
+        const sizeDev = prodFile.length;
+        const sizeDevGzip = await (await gzip(prodFile)).byteLength;
 
         const prodFileName = `index.${prodHash}.min.js`;
         fs.renameSync(path.join(__cwd, "libs", module_name || package, "index.min.js"), path.join(__cwd, "libs", module_name || package, prodFileName));
@@ -520,19 +605,18 @@ if (process.argv[2] == "build") {
                 const file_contents = fs.readFileSync(path.join(__cwd, "node_modules", package, file_name)).toString();
 
                 fs.copyFileSync(path.join(__cwd, "node_modules", package, file_name), path.join(__cwd, "libs", module_name || package, file_name.split(path.sep).pop()));
-    
-                style_files.push({size: file_contents.length / 1000, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join( module_name || package, file_name.split(path.sep).pop()))});
+
+                const gzipped = await (await gzip(file_contents)).byteLength;
+
+                style_files.push({ size: file_contents.length, sizeGzip: gzipped, file: file_name.split(path.sep).pop(), sri: get_file_hash(path.join(module_name || package, file_name.split(path.sep).pop())) });
             }
         }
-
-        // copy css files
-        // let css_files = copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".css", false);
 
         fs.writeFileSync(path.join(__cwd, "libs", module_name || package, "amd_lib.json"), `
         {
             "api": 1,
             "name": "${module_name || package}",
-            "description": "${package_json.description.replace(/\"/gmi, "'")}",
+            "description": "${(package_json.description || "").replace(/\"/gmi, "'")}",
             "author": ${package_json.author == undefined ? '""' : JSON.stringify(package_json.author)},
             "version": "${version.slice(0, version.length - 1)}",
             "repo": ${JSON.stringify(package_json.repository) || '""'},
@@ -540,10 +624,13 @@ if (process.argv[2] == "build") {
             "keywords": ${JSON.stringify(package_json.keywords || [])},
             "license": "${package_json.license}",
             "dependencies": ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(__cwd, "__deps.json")).toString()), null, 4).replace(/    /img, "        ").replace("}", "    }")},
-            "files": [
-                {"type": "script_prod", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "sizeKB": ${sizeProd / 1000}},
-                {"type": "script_dev", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "sizeKB": ${sizeDev / 1000}}${style_files.length ? "," : ""}
-                ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "sizeKB": ${style.size}}`).join(",\n")}
+            "prod_files": [
+                {"type": "script", "file": "${prodFileName}", "sri": "${get_file_hash(`${module_name || package}/${prodFileName}`)}", "size": ${sizeProd}, "gzipSize": ${sizeProdGzip}}${style_files.length ? "," : ""}
+                ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "gzipSize": ${style.sizeGzip}, "size": ${style.size}}`).join(",\n")}
+            ],
+            "dev_files": [
+                {"type": "script", "file": "index.js", "sri": "${get_file_hash(`${module_name || package}/index.js`)}", "size": ${sizeDev}, "gzipSize": ${sizeDevGzip}}${style_files.length ? "," : ""}
+                ${style_files.map(style => `{"type": "style", "file": "${style.file}", "sri": "${style.sri}", "gzipSize": ${style.sizeGzip}, "size": ${style.size}}`).join(",\n")}
             ]
         }
         `.trim());
@@ -555,19 +642,8 @@ if (process.argv[2] == "build") {
         }
 
         if (has_gen_entry) {
-            fs.unlinkSync(path.join(__cwd, `/node_modules/${ module_name ||package}/index.js`));
+            fs.unlinkSync(path.join(__cwd, `/node_modules/${module_name || package}/index.js`));
         }
-
-
-        // Checks for TS files and copy them over
-        // const types_root = path.join(__cwd, "node_modules", "@types", module_name || package);
-
-        // // check for ts files
-        // if (fs.existsSync(types_root)) {
-        //     copy_types(types_root, [], ".d.ts", true);
-        // } else { // try to find types in node_modules
-        //     copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".d.ts", true);
-        // }
 
         // copy eot, svg, ttf, and woff files over
         copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".eot", true);
