@@ -7,6 +7,7 @@ const request = require("request");
 const XXHash = require('xxhash');
 const filesize = require("filesize");
 const { gzip, ungzip } = require('node-gzip');
+const { sep } = require("path");
 
 const __cwd = process.cwd();
 
@@ -421,6 +422,191 @@ if (process.argv[2] == "pack") {
     })()
 }
 
+const async_process = (...args) => {
+    return new Promise((res, rej) => {
+        const spawn = child.spawn(...args);
+
+        spawn.on('error', (err) => {
+            rej(err);
+        });
+
+        let outdata = "", outerr = "";
+
+        spawn.stdout.on('data', (data) => {
+            outdata += data;
+        });
+
+        spawn.stderr.on('data', (data) => {
+            outerr += data;
+        });
+
+        spawn.on('close', (code) => {
+            if (code !== 0) {
+                rej(outerr);
+            } else {
+                res(outdata);
+            }
+        });
+    });
+}
+
+const npm_install = async (module, stop_on_failure) => {
+    return new Promise((res, rej) => {
+        const spawn = child.spawn(`npm`, [`install`, module], {
+            cwd: __dirname,
+            detached: true,
+        });
+
+        spawn.on('error', (err) => {
+            rej(err);
+        });
+
+        let outdata = "", outerr = "";
+
+        spawn.stdout.on('data', (data) => {
+            outdata += data;
+        });
+
+        spawn.stderr.on('data', (data) => {
+            outerr += data;
+        });
+
+        spawn.on('close', (code) => {
+            if (code !== 0 && stop_on_failure == true) {
+                console.log("Error intalling package...");
+                console.log(outdata);
+                console.error(outerr);
+                process.exit();
+            } else {
+                res(outdata);
+            }
+        });
+    });
+};
+
+
+const install_package = async (package, index_file, output_dir) => {
+    await npm_install(package, true);
+    await npm_install(`@types/${package}`, false);
+
+    let current_path = __cwd.split(path.sep);
+    let found_node_modules = false;
+    while (found_node_modules == false && current_path.length) {
+        if (fs.existsSync(path.join(path.sep, ...current_path, "node_modules"))) {
+            found_node_modules = true;
+        } else {
+            current_path.pop();
+        }
+    }
+
+    if (found_node_modules == false) {
+        console.log("Unable to find node_modules, quitting!");
+        process.exit();
+    }
+
+    if (!fs.existsSync(path.join(__cwd, output_dir))) {
+        fs.mkdirSync(path.join(__cwd, output_dir));
+    }
+
+    if (!fs.existsSync(path.join(__cwd, output_dir, ...package.split("/")))) {
+        fs.mkdirSync(path.join(__cwd, output_dir, ...package.split("/")));
+    }
+
+    const package_path = path.join(path.sep, ...current_path, "node_modules", ...package.split("/"));
+
+    const package_json = JSON.parse(fs.readFileSync(path.join(package_path, "package.json")));
+
+    const version = package_json.version;
+
+    const entry = path.join(package_path, `${index_file || package_json.main || "index.js"}`);
+
+    const indexJSFile = fs.readFileSync(entry);
+    const hasher = new XXHash(0xCAFEBABE);
+    hasher.update(indexJSFile);
+    const hash = hasher.digest().toString(16);
+
+    const build_module = async (mode) => {
+        try {
+            const filename = `${version}_${hash}${mode == "prod" ? ".min" : ""}.js`;
+
+            const target_file = path.join(__cwd, output_dir, ...package.split("/"), filename);
+        
+            if (fs.existsSync(target_file)) {
+                return;
+            }
+
+            const webpack_result = await async_process(`./node_modules/.bin/webpack-cli`, [
+                `--json`,
+                `--config`, `webpack.config.prod.5.1.js`,
+                `--env`, `NODE_ENV=${mode == "dev" ? "development" : "production"}`,
+                `config::${Buffer.from(JSON.stringify({
+                    library: package,
+                    path: path.join(__cwd, output_dir, package),
+                    filename: filename,
+                    entry: entry,
+                    mode: mode
+                })).toString('base64')}`,
+            ], {
+                cwd: __dirname,
+                detached: true
+            });
+
+            const output_data = JSON.parse(webpack_result);
+
+            const size = output_data.namedChunkGroups.main.assets[0].size;
+
+            fs.writeFileSync(path.join(__cwd, output_dir, "webpack.json"), JSON.stringify(output_data, null, 4));
+
+            let dependencies = [];
+            output_data.modules.forEach((module) => {
+                if (module.name.indexOf("external ") !== -1) {
+                    const name = module.name.replace('external ', "").replace(/\"/gmi, "");
+                    dependencies.push(name);
+                }
+            });
+
+            console.log(`Built ${path.join(output_dir, package, filename)} (${humanFileSize(size)}) in ${output_data.time}ms`);   
+            if (dependencies.length > 0) {
+                console.log("Checking dependencies...");
+                for (let i = 0; i < dependencies.length; i++) {
+                    await install_package(dependencies[i], "", output_dir);
+                }
+            }
+
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    await build_module("prod");
+    await build_module("dev");
+};
+
+if (process.argv[2] == "install") {
+
+    const package = process.argv[3];
+
+
+    const index_file = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("index=") !== -1) {
+                return process.argv[i].split("=").pop();
+            }
+        }
+        return "";
+    })();
+
+    const output_dir = (() => {
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("out_dir=") !== -1) {
+                return process.argv[i].split("=").pop();
+            }
+        }
+        return "";
+    })();
+
+    install_package(package, index_file, output_dir);
+}
 
 if (process.argv[2] == "build") {
 
@@ -461,6 +647,16 @@ if (process.argv[2] == "build") {
         let result = [];
         for (let i in process.argv) {
             if (process.argv[i].indexOf("prod_style=") !== -1) {
+                result.push(process.argv[i].split("=").pop());
+            }
+        }
+        return result;
+    })();
+
+    const types = (() => {
+        let result = [];
+        for (let i in process.argv) {
+            if (process.argv[i].indexOf("types=") !== -1) {
                 result.push(process.argv[i].split("=").pop());
             }
         }
@@ -671,6 +867,13 @@ if (process.argv[2] == "build") {
             fs.unlinkSync(path.join(__cwd, `/node_modules/${module_name || package}/index.js`));
         }
 
+        // copy over definition files
+        copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".d.ts", true);
+
+        if (types && types.length) {
+            copy_types(path.join(__cwd, "node_modules", ...types[0].split("/")), [], ".d.ts", true);
+        }
+
         // copy eot, svg, ttf, and woff files over
         copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".eot", true);
         copy_types(path.join(__cwd, "node_modules", module_name || package), [], ".woff", true);
@@ -684,6 +887,28 @@ if (process.argv[2] == "build") {
 
         }
 
+        const remove_empty_dirs = (scan_dir, subdirs) => {
+
+            try {
+                const files = fs.readdirSync(path.join(scan_dir, ...subdirs));
+                if (files.length == 0) {
+                    fs.rmdirSync(path.join(scan_dir, ...subdirs));
+                } else {
+                    for (key in files) {
+                        if (fs.fstatSync(fs.openSync(path.join(scan_dir, ...subdirs, files[key]))).isFile() == false) {
+                            remove_empty_dirs(scan_dir, [...subdirs, files[key]]);
+                        }
+                    }
+                }
+
+            } catch (e) {
+
+            }
+        }
+
+        remove_empty_dirs(path.join(__cwd, "libs", module_name || package), []);
+
+
 
     })()
 
@@ -692,3 +917,38 @@ if (process.argv[2] == "build") {
     return;
 
 }
+
+/**
+ * Format bytes as human-readable text.
+ * 
+ * @param bytes Number of bytes.
+ * @param si True to use metric (SI) units, aka powers of 1000. False to use 
+ *           binary (IEC), aka powers of 1024.
+ * @param dp Number of decimal places to display.
+ * 
+ * @return Formatted string.
+ */
+ function humanFileSize(bytes, si=false, dp=1) {
+    const thresh = si ? 1000 : 1024;
+  
+    if (Math.abs(bytes) < thresh) {
+      return bytes + ' B';
+    }
+  
+    const units = si 
+      ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'] 
+      : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+    let u = -1;
+    const r = 10**dp;
+  
+    do {
+      bytes /= thresh;
+      ++u;
+    } while (Math.round(Math.abs(bytes) * r) / r >= thresh && u < units.length - 1);
+  
+  
+    return bytes.toFixed(dp) + ' ' + units[u];
+  }
+
+
+  
